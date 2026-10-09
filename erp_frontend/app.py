@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
+import time
+import uuid
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +51,7 @@ from config import (
     MAP_CONNECTIONS,
     MAP_NODE_POSITIONS,
 )
+from transport_tasks import TransportConflictError, TransportTaskManager
 
 
 # --------------------
@@ -66,6 +70,7 @@ DATA_FILE = Path(
 ).with_name(
     "orders.json"
 )
+TRANSPORT_TASKS_FILE = Path(__file__).with_name("transport_tasks.json")
 
 
 # --------------------
@@ -88,12 +93,19 @@ events = []
 robots = {}
 dispatching_robots = set()
 recovery_requests = {}
+object_inventory_snapshot = None
+object_inventory_received_at = None
+OBJECT_INVENTORY_MAX_AGE_SECONDS = 5.0
 RECOVERY_ORDER_STATES = {
     "DISPATCHED",
     "EXECUTING",
     "STOPPING",
     "RECOVERY_REQUIRED",
 }
+transport_task_manager = TransportTaskManager(
+    MAP_NODE_POSITIONS,
+    TRANSPORT_TASKS_FILE,
+)
 
 
 # --------------------
@@ -130,7 +142,7 @@ def robot_status_is_fresh(robot, max_age_seconds=8.0):
     return 0 <= age <= max_age_seconds
 
 
-def robot_dispatchability_reason(robot):
+def robot_dispatchability_reason(robot, allowed_transport_task_id=None):
     if not robot:
         return "Robot is not registered"
     if not robot.get("agentOnline"):
@@ -139,6 +151,15 @@ def robot_dispatchability_reason(robot):
         return "Robot status is stale"
     if robot.get("recoveryRequired") or robot.get("recoveryPending"):
         return robot.get("recoveryReason") or "Robot requires recovery"
+    if transport_task_manager.has_unreleased_load(
+        robot.get("manufacturer"),
+        robot.get("robotId"),
+    ) and not transport_task_manager.task_authorizes_carrier(
+        allowed_transport_task_id,
+        robot.get("manufacturer"),
+        robot.get("robotId"),
+    ):
+        return "Robot has a verified load reserved for object transport"
     if robot.get("currentOrder"):
         return f"Active mission {robot['currentOrder']}"
     if robot.get("available") is not True:
@@ -148,6 +169,80 @@ def robot_dispatchability_reason(robot):
     if "NAVIGATION" not in robot.get("capabilities", []):
         return "Navigation capability is not implemented"
     return None
+
+
+def update_object_inventory(payload):
+    global object_inventory_snapshot, object_inventory_received_at
+
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("objects"), list)
+        or not isinstance(payload.get("relationships"), list)
+    ):
+        add_event(
+            "OBJECT_INVENTORY_ERROR",
+            "Fleet published an invalid object inventory snapshot",
+        )
+        return
+
+    with data_lock:
+        object_inventory_snapshot = json.loads(json.dumps(payload))
+        object_inventory_received_at = time.monotonic()
+        robot_list = [dict(robot) for robot in robots.values()]
+
+    inventory, status_code = get_object_inventory_response()
+    if status_code == 200:
+        transport_task_manager.observe_inventory(inventory, robot_list)
+        transport_task_manager.verify_deliveries(inventory, robot_list)
+
+
+def get_object_inventory_response():
+    with data_lock:
+        payload = (
+            json.loads(json.dumps(object_inventory_snapshot))
+            if object_inventory_snapshot is not None
+            else None
+        )
+        received_at = object_inventory_received_at
+
+    if payload is None:
+        return {
+            "objects": [],
+            "relationships": [],
+            "objectCount": 0,
+            "relationshipCount": 0,
+            "lastRefresh": None,
+            "coordinateSystem": "X/Y floor plane; Z height",
+            "simulationConnected": False,
+            "error": "No object inventory has been received from Webots",
+        }, 503
+
+    last_refresh = payload.get("lastRefresh")
+    fresh = False
+    if received_at is not None and last_refresh:
+        try:
+            parsed = datetime.fromisoformat(
+                last_refresh.replace("Z", "+00:00")
+            )
+            source_age = (
+                datetime.now(timezone.utc) - parsed
+            ).total_seconds()
+            receive_age = time.monotonic() - received_at
+            fresh = (
+                0 <= source_age <= OBJECT_INVENTORY_MAX_AGE_SECONDS
+                and 0 <= receive_age <= OBJECT_INVENTORY_MAX_AGE_SECONDS
+            )
+        except (AttributeError, TypeError, ValueError):
+            fresh = False
+
+    payload["objectCount"] = len(payload["objects"])
+    payload["relationshipCount"] = len(payload["relationships"])
+    payload["simulationConnected"] = fresh
+    if not fresh:
+        payload["error"] = (
+            "Webots object inventory is stale; check the simulation supervisor"
+        )
+    return payload, 200 if fresh else 503
 
 
 # --------------------
@@ -303,6 +398,17 @@ def update_order_from_robot_status(
         elif state == "ERROR":
             order["status"] = "FAILED"
 
+        task_state = (
+            "COMPLETED"
+            if order.get("status") == "COMPLETED"
+            else state
+        )
+
+    transport_task_manager.update_order_state(
+        order_id,
+        task_state,
+        node_id,
+    )
     save_orders()
 
 
@@ -360,6 +466,11 @@ def update_from_vda_state(
             order["recoveryReason"] = None
             changed = True
 
+    transport_task_manager.update_order_state(
+        order_id,
+        "COMPLETED" if order.get("status") == "COMPLETED" else "EXECUTING",
+        last_node,
+    )
     if changed or order is not None:
         save_orders()
 
@@ -514,6 +625,41 @@ def update_robot_registry(payload):
 
     if orders_changed:
         save_orders()
+    with data_lock:
+        task_order_states = [
+            (
+                order.get("orderId"),
+                order.get("status"),
+                (
+                    robots.get(
+                        (order.get("manufacturer"), order.get("serialNumber")),
+                        {},
+                    ).get("currentNode")
+                ),
+            )
+            for order in orders.values()
+            if order.get("orderId")
+        ]
+    for order_id, order_state, current_node in task_order_states:
+        if order_state in {
+            "DISPATCHED",
+            "EXECUTING",
+            "COMPLETED",
+            "FAILED",
+            "STOPPED",
+            "RECOVERY_REQUIRED",
+        }:
+            transport_task_manager.update_order_state(
+                order_id,
+                order_state,
+                current_node,
+            )
+    inventory, inventory_status = get_object_inventory_response()
+    if inventory_status == 200:
+        transport_task_manager.reconcile(
+            inventory,
+            list(refreshed.values()),
+        )
     for key, recovered_order_id in recovery_confirmations:
         add_event(
             "ROBOT_RECOVERY_CONFIRMED",
@@ -547,6 +693,7 @@ def mqtt_on_connect(
     for topic in (
         "fleet/robots",
         "vda5050/v3/+/+/state",
+        "warehouse/objects",
     ):
         client.subscribe(topic, qos=0)
 
@@ -605,6 +752,10 @@ def mqtt_on_message(
 
     if message.topic == "fleet/robots":
         update_robot_registry(payload)
+        return
+
+    if message.topic == "warehouse/objects":
+        update_object_inventory(payload)
         return
 
     if message.topic.endswith("/state"):
@@ -809,6 +960,7 @@ def dashboard():
         {
             "orders": order_list,
             "robots": robot_list,
+            "transportTasks": transport_task_manager.list_tasks(),
             "events": event_list,
             "summary": {
                 "totalOrders": len(order_list),
@@ -834,6 +986,311 @@ def dashboard():
             },
         }
     )
+
+
+@app.get("/api/transport-options")
+def transport_options():
+    inventory, status_code = get_object_inventory_response()
+    if status_code != 200:
+        return jsonify(inventory), status_code
+    with data_lock:
+        carrier_list = [
+            dict(robot)
+            for robot in robots.values()
+        ]
+    return jsonify(
+        {
+            "objects": inventory.get("objects", []),
+            "destinations": [
+                {"nodeId": node_id, "position": {"x": position[0], "y": position[1]}}
+                for node_id, position in MAP_NODE_POSITIONS.items()
+            ],
+            "carriers": carrier_list,
+            "handlingModes": ["PRELOADED"],
+        }
+    )
+
+
+@app.get("/api/transport-tasks")
+def list_transport_tasks():
+    return jsonify({"tasks": transport_task_manager.list_tasks()})
+
+
+@app.get("/api/transport-tasks/<task_id>")
+def get_transport_task(task_id):
+    task = transport_task_manager.get(task_id)
+    if task is None:
+        return jsonify({"error": "Transport task not found"}), 404
+    return jsonify(task)
+
+
+@app.post("/api/transport-tasks")
+def create_transport_task():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "A JSON transport task request is required"}), 400
+    if payload.get("taskType") != "TRANSPORT_OBJECT":
+        return jsonify({"error": "taskType must be TRANSPORT_OBJECT"}), 400
+    if payload.get("handlingMode") != "PRELOADED":
+        return jsonify(
+            {"error": "Only PRELOADED transport is supported; no handling robot is configured"}
+        ), 400
+
+    object_id = str(payload.get("objectId") or "").strip()
+    destination = str(payload.get("destinationNode") or "").strip()
+    if not object_id:
+        return jsonify({"error": "objectId is required"}), 400
+    if destination not in MAP_NODE_POSITIONS:
+        return jsonify({"error": f"Unknown destination node: {destination or '(empty)'}"}), 400
+
+    inventory, status_code = get_object_inventory_response()
+    if status_code != 200:
+        return jsonify(inventory), status_code
+    object_record = next(
+        (
+            item
+            for item in inventory["objects"]
+            if item.get("object_id") == object_id
+        ),
+        None,
+    )
+    if object_record is None:
+        return jsonify({"error": f"Object not found in live inventory: {object_id}"}), 404
+
+    carrier_id = str(payload.get("carrierRobotId") or "").strip() or None
+    manufacturer = str(payload.get("manufacturer") or "").strip() or None
+    with data_lock:
+        carrier_list = [dict(robot) for robot in robots.values()]
+    if carrier_id and not any(
+        robot.get("robotId") == carrier_id
+        and (manufacturer is None or robot.get("manufacturer") == manufacturer)
+        for robot in carrier_list
+    ):
+        return jsonify({"error": f"Unknown carrier robot: {carrier_id}"}), 404
+
+    try:
+        transport_task_manager.observe_inventory(inventory, carrier_list)
+        task = transport_task_manager.create_task(
+            object_record,
+            destination,
+            carrier_list,
+            carrier_id,
+            manufacturer,
+        )
+    except TransportConflictError as error:
+        return jsonify({"error": str(error)}), 409
+    except OSError as error:
+        add_event("TRANSPORT_TASK_PERSISTENCE_ERROR", str(error))
+        return jsonify({"error": "Could not persist transport task"}), 503
+    except ValueError as error:
+        add_event("TRANSPORT_TASK_ERROR", str(error))
+        return jsonify({"error": str(error)}), 400
+    add_event(
+        "TRANSPORT_TASK_CREATED",
+        f"Transport task {task['taskId']} created with state {task['status']}",
+        task,
+    )
+    return jsonify(task), 201
+
+
+@app.post("/api/transport-tasks/<task_id>/dispatch")
+def dispatch_transport_task(task_id):
+    task = transport_task_manager.get(task_id)
+    if task is None:
+        return jsonify({"error": "Transport task not found"}), 404
+    if task.get("status") != "READY_FOR_DISPATCH":
+        return jsonify(
+            {
+                "error": task.get("message")
+                or f"Transport task cannot dispatch from {task.get('status')}",
+                "task": task,
+            }
+        ), 409
+
+    inventory, status_code = get_object_inventory_response()
+    if status_code != 200:
+        return jsonify(inventory), status_code
+    object_record = next(
+        (
+            item
+            for item in inventory["objects"]
+            if item.get("object_id") == task.get("objectId")
+        ),
+        None,
+    )
+    if object_record is None:
+        return jsonify({"error": "Transport object is absent from live inventory"}), 409
+
+    robot_key = (task.get("manufacturer"), task.get("carrierRobotId"))
+    with data_lock:
+        carrier = robots.get(robot_key)
+        carrier = dict(carrier) if carrier is not None else None
+    if carrier is None:
+        return jsonify({"error": "Verified carrier is not in the current fleet"}), 409
+    reason = robot_dispatchability_reason(carrier, task_id)
+    if reason:
+        return jsonify({"error": f"Carrier is unavailable: {reason}"}), 409
+    start_node = carrier.get("currentNode")
+    if not start_node:
+        return jsonify({"error": "Carrier location is not available yet"}), 409
+    try:
+        route_nodes = plan_order_nodes(
+            start_node,
+            [],
+            task["destinationNode"],
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    if len(route_nodes) < 2:
+        return jsonify({"error": "Carrier is already at the destination"}), 409
+    if not transport_task_manager.reserve(task_id, object_record, carrier):
+        return jsonify(
+            {"error": "Load, carrier, or task reservation changed; refresh and retry"}
+        ), 409
+
+    order_id = f"transport-{uuid.uuid4().hex}"
+    order = build_order(
+        order_id,
+        carrier["robotId"],
+        "NORMAL",
+        route_nodes,
+        "destination",
+        [],
+        task["destinationNode"],
+        carrier["manufacturer"],
+    )
+    with data_lock:
+        if order_id in orders:
+            transport_task_manager.rollback_dispatch(task_id)
+            return jsonify({"error": "Generated transport order ID already exists"}), 409
+        orders[order_id] = order
+    try:
+        save_orders()
+    except OSError as error:
+        with data_lock:
+            orders.pop(order_id, None)
+        transport_task_manager.rollback_dispatch(task_id)
+        add_event("ORDER_PERSISTENCE_ERROR", str(error))
+        return jsonify({"error": "Could not persist transport order"}), 503
+
+    if not transport_task_manager.attach_order(task_id, order_id):
+        transport_task_manager.mark_recovery_required(
+            task_id,
+            "Could not correlate the transport task with its persisted navigation order",
+        )
+        return jsonify({"error": "Could not reserve transport task for dispatch"}), 503
+
+    dispatch_result = dispatch_order(order_id)
+    if isinstance(dispatch_result, tuple):
+        response, dispatch_status = dispatch_result
+    else:
+        response, dispatch_status = dispatch_result, dispatch_result.status_code
+    if dispatch_status == 200:
+        if not transport_task_manager.mark_dispatched(task_id):
+            transport_task_manager.mark_recovery_required(
+                task_id,
+                "Navigation was dispatched but task state could not be persisted",
+            )
+            return jsonify({"error": "Dispatch outcome requires recovery"}), 503
+        transport_task_manager.update_order_state(order_id, "DISPATCHED")
+        return jsonify(
+            {
+                "task": transport_task_manager.get(task_id),
+                "order": order,
+            }
+        ), 202
+    dispatch_error = (
+        response.get_json(silent=True) or {}
+    ).get("error", "")
+    safe_dispatch_rejection = (
+        dispatch_error.startswith("MQTT publish failed:")
+        or dispatch_error == "Could not persist order before dispatch"
+    )
+    if dispatch_status >= 500 and not safe_dispatch_rejection:
+        transport_task_manager.mark_recovery_required(
+            task_id,
+            "Order publish or persistence outcome is uncertain; load association retained",
+        )
+    else:
+        transport_task_manager.rollback_dispatch(task_id)
+        with data_lock:
+            order["status"] = "FAILED"
+            order["dispatchError"] = "Transport dispatch was rejected before movement"
+        save_orders()
+    return response, dispatch_status
+
+
+@app.get("/api/objects")
+def list_objects():
+    payload, status_code = get_object_inventory_response()
+    return jsonify(payload), status_code
+
+
+@app.get("/api/objects/relationships")
+def list_object_relationships():
+    payload, status_code = get_object_inventory_response()
+    return jsonify(
+        {
+            "relationships": payload.get("relationships", []),
+            "lastRefresh": payload.get("lastRefresh"),
+            "simulationConnected": payload.get("simulationConnected", False),
+            **({"error": payload["error"]} if "error" in payload else {}),
+        }
+    ), status_code
+
+
+@app.get("/api/objects/<object_id>")
+def get_object(object_id):
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", object_id):
+        return jsonify({"error": "Invalid object ID"}), 400
+
+    payload, status_code = get_object_inventory_response()
+    record = next(
+        (
+            item
+            for item in payload.get("objects", [])
+            if item.get("object_id") == object_id
+        ),
+        None,
+    )
+    if status_code != 200:
+        return jsonify({"error": payload["error"], "object": record}), status_code
+    if record is None:
+        return jsonify({"error": "Object not found"}), 404
+    return jsonify(record)
+
+
+@app.post("/api/objects/refresh")
+def refresh_objects():
+    if not mqtt_client.is_connected():
+        return jsonify(
+            {"error": "Cannot request inventory refresh: MQTT is disconnected"}
+        ), 503
+
+    try:
+        result = mqtt_client.publish(
+            "warehouse/objects/refresh",
+            json.dumps({"requestedAt": now_utc()}),
+            qos=0,
+        )
+    except Exception as error:
+        add_event(
+            "OBJECT_INVENTORY_ERROR",
+            f"Could not request Webots inventory refresh: {error}",
+        )
+        return jsonify({"error": "Could not request inventory refresh"}), 503
+
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+        return jsonify(
+            {"error": f"Could not request inventory refresh: {result.rc}"}
+        ), 503
+
+    return jsonify(
+        {
+            "status": "REFRESH_REQUESTED",
+            "message": "Webots will publish the next inventory snapshot shortly",
+        }
+    ), 202
 
 
 # --------------------
@@ -1033,7 +1490,11 @@ def dispatch_order(
 
         robot_key = (order["manufacturer"], order["serialNumber"])
         selected_robot = robots.get(robot_key)
-        reason = robot_dispatchability_reason(selected_robot)
+        transport_task_id = transport_task_manager.task_id_for_order(order_id)
+        reason = robot_dispatchability_reason(
+            selected_robot,
+            transport_task_id,
+        )
         if reason:
             return jsonify(
                 {"error": f"Selected robot is unavailable: {reason}"}
@@ -1133,10 +1594,33 @@ def dispatch_order(
     try:
         save_orders()
     except OSError as error:
+        with data_lock:
+            order["status"] = "RECOVERY_REQUIRED"
+            order["recoveryReason"] = (
+                "Order was published but its dispatch update could not be persisted"
+            )
+            active_robot = robots.get(robot_key)
+            if active_robot is not None:
+                active_robot["available"] = False
+                active_robot["recoveryRequired"] = True
+                active_robot["recoveryReason"] = order["recoveryReason"]
         add_event(
             "ORDER_PERSISTENCE_ERROR",
             f"Order {order_id} was published but its dispatch update could not be saved: {error}",
         )
+        try:
+            save_orders()
+        except OSError as recovery_error:
+            add_event(
+                "ORDER_PERSISTENCE_ERROR",
+                f"Could not persist recovery state for {order_id}: {recovery_error}",
+            )
+        return jsonify(
+            {
+                "error": order["recoveryReason"],
+                "orderId": order_id,
+            }
+        ), 503
 
     add_event(
         "ORDER_DISPATCHED",
@@ -1458,6 +1942,7 @@ def start_mqtt():
 if __name__ == "__main__":
 
     load_orders()
+    transport_task_manager.load()
     start_mqtt()
 
     app.run(

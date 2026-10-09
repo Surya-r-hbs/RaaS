@@ -36,6 +36,7 @@ from config import (
 )
 
 from mission import Mission, validate_order
+from object_registry import ObjectRegistry
 from robot_registry import RobotRegistry
 
 
@@ -45,9 +46,12 @@ from robot_registry import RobotRegistry
 
 missions: dict[tuple[str, str], Mission] = {}
 robot_registry = RobotRegistry()
+object_registry = ObjectRegistry()
 
 state_lock = threading.Lock()
 REGISTRY_TOPIC = "fleet/robots"
+OBJECTS_RAW_TOPIC = "warehouse/objects/raw"
+OBJECTS_TOPIC = "warehouse/objects"
 
 
 def publish_robot_registry() -> None:
@@ -59,6 +63,17 @@ def publish_robot_registry() -> None:
     )
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
         log(f"ERROR: Failed to publish robot registry: {result.rc}")
+
+
+def publish_object_registry() -> None:
+    result = mqtt_client.publish(
+        OBJECTS_TOPIC,
+        json.dumps(object_registry.snapshot()),
+        qos=1,
+        retain=True,
+    )
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+        log(f"ERROR: Failed to publish object inventory: {result.rc}")
 
 
 # --------------------
@@ -872,6 +887,10 @@ def on_connect(
             "robot/discovery",
             "ROBOT DISCOVERY",
         ),
+        (
+            OBJECTS_RAW_TOPIC,
+            "WEBOTS OBJECT INVENTORY",
+        ),
     ):
 
         result, message_id = client.subscribe(
@@ -974,6 +993,15 @@ def on_message(
             f"{payload.get('robotType', 'Unknown')})"
         )
         publish_robot_registry()
+        return
+
+    if message.topic == OBJECTS_RAW_TOPIC:
+        try:
+            object_registry.update(payload)
+        except ValueError as error:
+            log(f"Invalid Webots object inventory: {error}")
+            return
+        publish_object_registry()
         return
 
     if message.topic.endswith("/order"):

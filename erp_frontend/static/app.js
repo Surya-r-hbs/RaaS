@@ -545,6 +545,10 @@ function render() {
       .join("")
 
     || "<p>No events.</p>";
+
+  if (typeof renderTransportTasks === "function") {
+    renderTransportTasks(data.transportTasks || []);
+  }
 }
 
 
@@ -684,6 +688,8 @@ function showPage(page) {
     "dashboard",
     "orders",
     "robots",
+    "objects",
+    "transport",
     "missions",
     "events",
   ];
@@ -709,6 +715,12 @@ function showPage(page) {
     robots:
       "Robot Fleet",
 
+    objects:
+      "Object Inventory",
+
+    transport:
+      "Transport Tasks",
+
     missions:
       "Mission Control",
 
@@ -719,6 +731,12 @@ function showPage(page) {
 
 
   render();
+  if (page === "objects" && typeof refreshObjects === "function") {
+    refreshObjects();
+  }
+  if (page === "transport" && typeof refreshTransportOptions === "function") {
+    refreshTransportOptions();
+  }
 }
 
 

@@ -40,6 +40,7 @@ class RobotRegistry:
                 "agentSessionId": None,
                 "capabilities": [],
                 "availableDevices": [],
+                "transportCapability": None,
                 "lastUpdate": None,
                 "_last_seen": 0.0,
                 "_source": "webots",
@@ -192,6 +193,7 @@ class RobotRegistry:
                 "capabilities",
                 "availableDevices",
                 "agentSessionId",
+                "transportCapability",
             ):
                 if field in payload:
                     entry[field] = payload[field]
@@ -266,6 +268,7 @@ class RobotRegistry:
                 "robotType",
                 "capabilities",
                 "availableDevices",
+                "transportCapability",
             ):
                 if field in payload:
                     entry[field] = payload[field]

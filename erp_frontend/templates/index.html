@@ -32,6 +32,14 @@
       Robots
     </button>
 
+    <button class="nav" onclick="showPage('objects')">
+      Objects
+    </button>
+
+    <button class="nav" onclick="showPage('transport')">
+      Transport Tasks
+    </button>
+
     <button class="nav" onclick="showPage('missions')">
       Missions
     </button>
@@ -167,6 +175,135 @@
 
 </section>
 
+<section id="objects" class="page">
+
+  <div class="cards">
+    <div class="card">
+      <span>Objects Present</span>
+      <strong id="object-count">0</strong>
+    </div>
+    <div class="card">
+      <span>Spatial Relationships</span>
+      <strong id="relationship-count">0</strong>
+    </div>
+    <div class="card">
+      <span>Last Inventory Refresh</span>
+      <strong id="object-refresh-time" class="object-summary-value">-</strong>
+    </div>
+    <div class="card">
+      <span>Simulation Status</span>
+      <strong id="object-simulation-status" class="object-summary-value">Waiting</strong>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>Warehouse Object Inventory</h2>
+        <p id="object-coordinate-system">Coordinates: X/Y floor plane, Z height</p>
+      </div>
+      <button id="refresh-objects" class="primary" onclick="requestObjectRefresh()">
+        Refresh Inventory
+      </button>
+    </div>
+
+    <div id="object-inventory-status" class="inventory-status">
+      Waiting for Webots inventory...
+    </div>
+
+    <div class="object-filters">
+      <input id="object-search" type="search" placeholder="Search objects by name or ID">
+      <select id="object-type-filter">
+        <option value="">All object types</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Object ID</th>
+            <th>X</th>
+            <th>Y</th>
+            <th>Z</th>
+            <th>Dimensions</th>
+            <th>Status</th>
+            <th>Relations</th>
+            <th>Last Seen</th>
+          </tr>
+        </thead>
+        <tbody id="objects-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="two object-detail-layout">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Selected Object</h2>
+      </div>
+      <div id="object-details">
+        <p>Select an object to inspect its position and relationships.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Spatial Relationship Hierarchy</h2>
+      </div>
+      <div id="object-hierarchy">
+        <p>No relationships detected.</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section id="transport" class="page">
+
+  <div class="panel transport-form">
+    <div class="panel-head">
+      <div>
+        <h2>Transport an Existing Object</h2>
+        <p>Preloaded objects only. This form never simulates pickup or attachment.</p>
+      </div>
+      <button onclick="refreshTransportOptions()">Refresh live options</button>
+    </div>
+    <div id="transport-options-status" class="inventory-status">
+      Waiting for live object and fleet data...
+    </div>
+    <label for="transport-object">Object from live inventory</label>
+    <select id="transport-object">
+      <option value="">Waiting for Webots inventory...</option>
+    </select>
+    <label for="transport-destination">Destination node</label>
+    <select id="transport-destination">
+      <option value="">Waiting for map nodes...</option>
+    </select>
+    <label for="transport-carrier">Carrier</label>
+    <select id="transport-carrier">
+      <option value="">Use verified loaded carrier automatically</option>
+    </select>
+    <label>Handling mode</label>
+    <input value="Already loaded (PRELOADED)" disabled>
+    <p class="transport-safety-note">
+      Dispatch is enabled only when a fresh Webots load verification and verified
+      carrier capacity, platform dimensions, and stability limits are available.
+    </p>
+    <button class="primary" onclick="createTransportTask()">Create transport task</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Transport Task History</h2>
+    </div>
+    <div id="transport-task-list"></div>
+  </div>
+
+</section>
+
 <section id="missions" class="page">
 
   <div class="panel">
@@ -273,6 +410,8 @@
 </div>
 
 <script src="/static/app.js"></script>
+<script src="/static/objects.js"></script>
+<script src="/static/transport.js"></script>
 
 </body>
 </html>

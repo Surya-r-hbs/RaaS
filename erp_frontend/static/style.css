@@ -413,3 +413,179 @@ td button {
   background: #f4f6f8;
   cursor: not-allowed;
 }
+
+.object-summary-value {
+  font-size: 18px !important;
+  line-height: 1.35;
+}
+
+.inventory-online {
+  color: #16803c;
+}
+
+.inventory-offline {
+  color: #b42318;
+}
+
+.inventory-status {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: #eaf7ee;
+  color: #16803c;
+  font-size: 13px;
+}
+
+.inventory-status-error {
+  background: #feecec;
+  color: #b42318;
+}
+
+.object-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.object-filters input,
+.object-filters select {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #d6dce1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.object-filters input {
+  flex: 1;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+#objects-table tr[data-object-id] {
+  cursor: pointer;
+}
+
+#objects-table tr[data-object-id]:hover,
+#objects-table tr.selected-object {
+  background: #eef6ff;
+}
+
+.object-detail-layout {
+  margin-top: 20px;
+}
+
+.transport-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.transport-form .panel-head {
+  margin-bottom: 0;
+}
+
+.transport-form label {
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.transport-form select,
+.transport-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5df;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.transport-safety-note {
+  margin: 4px 0;
+  color: #6b4e00;
+  font-size: 13px;
+}
+
+.transport-task {
+  padding: 14px 0;
+  border-bottom: 1px solid #e2e7eb;
+}
+
+.transport-task:last-child {
+  border-bottom: 0;
+}
+
+.transport-task p {
+  margin: 8px 0;
+}
+
+.transport-task-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.transport-task-history {
+  padding-left: 22px;
+  color: #526171;
+  font-size: 13px;
+}
+
+.transport-task-history li {
+  margin: 6px 0;
+}
+
+.transport-task-history small {
+  display: block;
+  color: #7a8794;
+}
+
+#object-details h3 {
+  margin-top: 0;
+}
+
+.object-tree,
+.object-tree ul {
+  list-style: none;
+  padding-left: 20px;
+}
+
+.object-tree {
+  padding-left: 0;
+}
+
+.object-tree li {
+  margin: 7px 0;
+}
+
+.hierarchy-object {
+  border: 0;
+  padding: 2px;
+  background: transparent;
+  color: #17202a;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hierarchy-object:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.relationship-label,
+.hierarchy-note {
+  color: #6b7785;
+  font-size: 12px;
+}
+
+.relationship-label {
+  margin-right: 5px;
+}
+
+@media (max-width: 700px) {
+  .object-filters {
+    flex-direction: column;
+  }
+}

@@ -31,6 +31,13 @@ def discover_world_robots(
         if type_name != "Robot" and base_type_name != "Robot":
             continue
 
+        controller_field = node.getField("controller")
+        if (
+            controller_field is not None
+            and controller_field.getSFString() == "object_supervisor"
+        ):
+            continue
+
         name_field = node.getField("name")
         name = name_field.getSFString().strip() if name_field else ""
         definition = node.getDef()

@@ -230,3 +230,102 @@ orders therefore contain just the live start node and destination. This
 prototype does not perform obstacle avoidance or collision-aware path planning.
 Keep `MAP_NODE_POSITIONS` and `MAP_CONNECTIONS` in `fleet_control/config.py`
 consistent with the Webots world for required-waypoint routing.
+
+## Warehouse object inventory
+
+The warehouse world includes a dedicated Webots Supervisor (`object_supervisor`)
+that scans supported top-level scene objects once per second. It publishes raw
+snapshots on `warehouse/objects/raw`; the Fleet controller validates the
+snapshot, recalculates geometric relationships, and publishes a retained
+snapshot on `warehouse/objects`. The ERP subscribes to that processed topic and
+does not invent or persist scene objects when Webots is offline. The Supervisor
+is excluded from robot fleet discovery.
+
+The Objects page displays the live object inventory, geometry-derived
+relationships, filters, and object details. Its refresh action publishes to
+`warehouse/objects/refresh`; the next Supervisor scan is then published. The
+HTTP API is:
+
+- `GET /api/objects` — inventory, relationship summary, source timestamp, and
+  simulation freshness.
+- `GET /api/objects/<object_id>` — one object and its relationships.
+- `GET /api/objects/relationships` — current object-to-object relationships.
+- `POST /api/objects/refresh` — request an immediate scan (HTTP 202 when sent).
+
+An inventory is considered connected only when its source timestamp and local
+MQTT receive time are both no older than five seconds. The scan timestamp is
+ISO-8601 with a timezone. Malformed or duplicate object records are rejected
+by Fleet instead of silently creating a partial inventory.
+
+Positions and bounds use this project's Webots convention: **X/Y are the floor
+plane and Z is height**. Each object's position is the PROTO origin; its local
+bounds, PROTO dimensions and rotation are kept separately. Objects currently
+discovered are Table, PlasticCrate, WaterBottle, and WoodenBox. `ON_TOP_OF`
+requires near-contact with a modeled support surface plus a 60% minimum
+footprint overlap. `INSIDE` checks the transformed object bounds against a
+known container interior. These are geometric checks, not sensor detections;
+unmodeled occlusion, collisions, and unknown container interiors are not
+inferred. Objects without a Webots DEF use a node ID that is stable during a
+simulation run, but may change after reloading the world.
+
+Run the regression tests, including object discovery, geometry, API freshness,
+refresh handling, and the existing robot/fleet behavior, with:
+
+    source ../.venv/bin/activate
+    python -m unittest discover -s tests -v
+
+## Object transport tasks (preloaded milestone)
+
+The ERP **Transport Tasks** page creates internal `TRANSPORT_OBJECT` tasks and
+uses the existing destination-only order planner and `/api/orders/<id>/dispatch`
+path for navigation. Transport metadata stays in `transport_tasks.json`; it is
+not added to VDA-5050 messages. Available APIs are:
+
+- `GET /api/transport-options` — fresh inventory, configured navigation nodes,
+  and fleet carrier metadata.
+- `POST /api/transport-tasks` — create a `PRELOADED` task with an inventory
+  `objectId` and configured `destinationNode`.
+- `GET /api/transport-tasks` and `GET /api/transport-tasks/<task_id>` — task
+  history and current backend state.
+- `POST /api/transport-tasks/<task_id>/dispatch` — reserve the verified object
+  and carrier, then dispatch through the existing VDA-5050 order code.
+
+Current task states include `VALIDATING`, `LOAD_REQUIRED`, `CREATED`,
+`READY_FOR_DISPATCH`, `DISPATCHING`, `DISPATCHED`, `EXECUTING`,
+`VERIFYING_DELIVERY`, `COMPLETED`, `FAILED`, and `RECOVERY_REQUIRED`.
+The task service never teleports or repositions an object. Its position and
+spatial relationships remain sourced from fresh Supervisor inventory scans.
+Successful delivery is recorded only after navigation reaches the selected
+node and a fresh object pose plus load verification place the object's bounds
+at that node. A verified load remains associated with the carrier after
+delivery; ordinary empty-robot dispatch is blocked until a later verified
+unload is reported.
+
+**This workspace does not yet produce a physical load-verification signal or a
+verified carrier payload/platform/stability profile.** Therefore, on the current
+world, transport requests are expected to remain `LOAD_REQUIRED` or fail
+carrier-compatibility checks; this is intentional and safer than assuming the
+box is loaded. The `object_supervisor` does not create `load_verification`
+records, and the existing robot adapters report navigation only. Integration
+of a real support/attachment verifier and measured carrier limits is required
+before a live task can become dispatchable. In particular, the current world
+sets YouBot `numberOfArms 0`; its adapter only advertises `NAVIGATION`, and no
+payload capacity, platform dimensions, or stability limit is configured.
+Neither robot identity nor visual fit alone is accepted as proof of carrying
+capability.
+
+The object inventory may accept a Supervisor-produced `load_verification`
+record only when it has a fresh, timezone-aware timestamp (maximum age five
+seconds), matching object ID, carrier robot/manufacturer, `verified: true`,
+and `method: "SUPERVISOR_GEOMETRY"`. A carrier agent must separately publish a
+`transportCapability` profile containing `status: "VERIFIED"`,
+`canCarryPreloaded: true`, `stabilityVerified: true`, a positive
+`maxPayloadKg`, and measured `platformDimensions` (`x`, `y`). The object must
+also have measured mass and geometry dimensions. Missing/invalid evidence,
+unknown capacity, or an unsupported footprint prevents dispatch.
+
+Load associations are persisted with task history. On ERP restart, an
+in-flight/uncertain task and its load move to `RECOVERY_REQUIRED` rather than
+being cleared. A known MQTT publish rejection rolls back only the matching
+pre-dispatch reservation; an uncertain publish outcome retains the reservation.
+Verified `UNLOADED` evidence is required to release a prior carrier association.
