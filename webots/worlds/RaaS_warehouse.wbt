@@ -1,0 +1,250 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/gctronic/e-puck/protos/E-puck.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Marble.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/pal_robotics/tiago/protos/Tiago.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/tables/protos/Table.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/kuka/youbot/protos/Youbot.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/mir/mir100/protos/Mir100.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/PlasticCrate.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/drinks/protos/WaterBottle.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.28867689659420576 -0.12932847607872677 0.9486515665131705 3.9453376383704652
+  position 12.987417120344803 10.256136600434276 8.580029929159975
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Mir100 {
+  hidden position_0_0 -2.7020071723493413e-09
+  hidden position_0_1 1.0301050120171096e-08
+  hidden position_0_2 9.359032661908074e-05
+  hidden position_0_3 9.342874138608076e-05
+  hidden position_0_4 6.5631970079833e-05
+  hidden position_0_5 6.548774089845217e-05
+  hidden rotation_11 -1 -1.4099078474454662e-09 -1.409913026335678e-09 1.5708
+  hidden rotation_13 -1 5.285024063365774e-09 5.285043476378787e-09 1.5708
+  hidden rotation_15 0 0 1 9.359032515863777e-05
+  hidden position_15_0 -0.000254072489110212
+  hidden rotation_16 -0.9999999838618521 -0.0001270357765590357 -0.00012703624318835543 1.5708000161381472
+  hidden rotation_18 0 0 1 9.342874065691274e-05
+  hidden position_18_0 -0.00024393373098479038
+  hidden rotation_19 -0.9999999851241386 -0.00012196641627433718 -0.00012196686428282268 1.5708000148758612
+  hidden rotation_21 0 0 1 6.563196783434219e-05
+  hidden position_21_0 -2.0730815896647983e-05
+  hidden rotation_22 -0.9999999998925588 -1.0365369873382083e-05 -1.036540794758154e-05 1.570800000107442
+  hidden rotation_24 0 0 1 6.548774012662589e-05
+  hidden position_24_0 -1.0592080145791385e-05
+  hidden rotation_25 -0.9999999999719521 -5.296020619390982e-06 -5.296040072796661e-06 1.5708000000280467
+  translation 1.2 -7.81 -0.00977767
+  rotation -0.017201717129703125 0.9998520224910104 0.00018452215523662624 0.006239710745527804
+  controller "robot_controller"
+  supervisor TRUE
+}
+Tiago {
+  hidden position_0_0 0.010172017759498159
+  hidden position_0_1 0.010391183738786414
+  hidden position_0_2 -0.41005121718510795
+  hidden position_0_3 -0.3330898954967312
+  hidden position_0_4 -0.28513585987350876
+  hidden position_0_5 -0.19963175865528082
+  hidden position_1_0 0.08974452555290258
+  hidden translation_2 0 0 0.6897445255529026
+  hidden position_2_0 -0.669999432190097
+  hidden position_3_0 0.7
+  hidden translation_4 0.025080861624895825 0.19405883364359963 -0.171
+  hidden rotation_4 0 0 0.9999999999999999 0.6389999999999981
+  hidden position_4_0 0.25997928263237374
+  hidden rotation_5 0.9833365286996332 -0.12854794811315226 0.1285484202969984 1.5876030775156866
+  hidden position_5_0 -3.1600228200938174
+  hidden rotation_6 0.5808586557400482 -0.5702596012646484 -0.5808676348509603 2.1049131615763694
+  hidden position_6_0 1.2700000976491042
+  hidden rotation_7 -0.9777965297477432 -0.148180028387229 -0.14817768253158264 1.5932513735024034
+  hidden position_7_0 1.3200006380837275
+  hidden rotation_8 -0.5226932011112428 -0.67348469018784 0.5226951210741029 1.956180192967103
+  hidden position_8_0 -0.3931488946600049
+  hidden rotation_9 -0.42702230883595976 -0.6393947058848557 -0.6393953063972436 2.3344331273955286
+  hidden position_9_0 1.4099989834164395
+  hidden rotation_10 0.7059610295228735 0.05688108821418295 0.7059628648863727 3.027957230625061
+  hidden position_12_0 3.442941802128728e-07
+  hidden position_12_1 5.758723418527442e-06
+  hidden translation_33 -3.442941802128728e-07 0 0
+  hidden translation_34 5.758723418527442e-06 0 0
+  hidden rotation_35 0 0 -1 0.6699994321900974
+  hidden position_35_0 0.23999974111450909
+  hidden rotation_36 0.9857703018389465 -0.11886296357343382 0.11886340018228 1.5851314201242037
+  hidden translation_45 4.499324412895675e-07 -8.05016654226165e-07 0.029975704682769444
+  hidden rotation_45 -0.9254772393467778 0.36413596814155397 0.1043881035208533 1.3117383587159072e-10
+  hidden rotation_49 0.999974133166276 0.005085902492613535 -0.005085921174210836 1.5708258671682718
+  hidden rotation_50 0.9999730065314958 0.005195479287732968 -0.005195498371829052 1.5708269938328294
+  hidden rotation_51 0 0 -1 0.4100512171851078
+  hidden position_51_0 0.036394949576071214
+  hidden rotation_52 -0.9996689444774536 0.018193391872689455 0.018193458700872057 1.5711311103272698
+  hidden rotation_53 0 0 -1 0.33308989549673174
+  hidden position_53_0 0.05320673256888927
+  hidden rotation_54 -0.9992926805989717 0.026590724951578795 0.026590822624944745 1.5715075696094492
+  hidden rotation_55 0 0 -1 0.2851358598735095
+  hidden position_55_0 0.023496628910834344
+  hidden rotation_56 -0.999861993487236 0.011747190428948348 0.01174723357886745 1.5709380160360662
+  hidden rotation_57 0 0 -1 0.19963175865528063
+  hidden position_57_0 0.04119508358349553
+  hidden rotation_58 -0.9995758927582031 0.020591642742094064 0.020591718379560198 1.5712241971876535
+  translation 0.0022608000152430224 1.704092872050665 0.08812229211925399
+  rotation 0.8335658370659336 0.5469168339885482 -0.0777815657885103 0.03399646889158898
+  controller "robot_controller"
+  supervisor TRUE
+}
+DEF N0 Solid {
+  translation -3 0 0
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N0"
+}
+DEF N1 Solid {
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N1"
+}
+DEF N2 Solid {
+  translation 3 0 0
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N2"
+}
+DEF N3 Solid {
+  translation 6 0 0
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N3"
+}
+DEF N4 Solid {
+  translation 5 2 0
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N4"
+}
+DEF N5 Solid {
+  translation 6 3 0
+  children [
+    Shape {
+      appearance Marble {
+        IBLStrength 2
+      }
+      geometry Cylinder {
+        height 0.01
+        radius 0.2
+      }
+    }
+  ]
+  name "N5"
+}
+E-puck {
+  hidden position_0_0 -6.11191343521749e-08
+  hidden position_0_1 -6.118252861253268e-08
+  hidden rotation_1 0 -1 0 5.960464477539063e-08
+  hidden rotation_2 0 -1 0 5.960464477539063e-08
+  translation -3 1.7812798047530665e-11 -6.396199560276296e-05
+  rotation 0.9999999999999999 -6.253545541461682e-17 7.831708850629985e-16 1.2357078667117833e-08
+  controller "robot_controller"
+  supervisor TRUE
+  groundSensorsSlot [
+    Compass {
+    }
+    GPS {
+    }
+  ]
+}
+Table {
+  translation 4.01 -4.01 0
+}
+PlasticCrate {
+  translation 4.140000842701649 -4.609999428761376 0.735683662737472
+  rotation 0.5198771921189745 -0.8542410086703405 -6.496437741146028e-05 0.0010324251755116053
+  mass 10
+}
+WaterBottle {
+  translation 3.9399886540219615 -4.732230964857432 0.7543517753121131
+  rotation -0.9025788218944099 -0.43052443695719556 -0.00042361585094468485 0.0018781060682247035
+}
+Youbot {
+  hidden position_0_0 3.2701765385871088e-09
+  hidden position_0_1 9.956131422487175e-09
+  hidden position_0_2 -7.060222119771469e-09
+  hidden position_0_3 -3.533186949257401e-09
+  hidden position_1_0 -1.957515172543973e-06
+  hidden rotation_2 0 0 -1 1.9574477521984197e-06
+  hidden position_2_0 1.5700024156752792
+  hidden rotation_3 0 -1 0 1.5700024156752792
+  hidden position_3_0 -2.635001144615803
+  hidden rotation_4 0 1 0 2.635001144615803
+  hidden position_4_0 1.7800004222977095
+  hidden rotation_5 0 -1 0 1.7800004222977095
+  hidden position_5_0 4.169820058441567e-09
+  hidden position_6_0 1.4253528809143378e-10
+  hidden translation_7 0 1.4253528809143378e-10 0.09
+  translation 0.00039948301774715613 -1.0599938274033471 0.09887539625246125
+  rotation -0.025637622608147757 0.9992847396705561 0.027797866258965166 0.003189649554252426
+  controller "robot_controller"
+  supervisor TRUE
+}
+Floor {
+  size 50 50
+}
+WoodenBox {
+  translation 4.19 -3.71 1.0360759999999996
+  rotation -0.8929865163326477 0.13867160898710035 0.4281883540090861 2.878781022439438e-17
+  mass 10
+}

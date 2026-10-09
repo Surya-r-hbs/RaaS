@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RaaS ERP Console</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="layout">
+
+<aside>
+  <div class="brand">
+    <b>R</b>
+    <div>
+      <strong>RaaS ERP</strong>
+      <small>Fleet Operations</small>
+    </div>
+  </div>
+
+  <nav>
+    <button class="nav active" onclick="showPage('dashboard')">
+      Dashboard
+    </button>
+
+    <button class="nav" onclick="showPage('orders')">
+      Orders
+    </button>
+
+    <button class="nav" onclick="showPage('robots')">
+      Robots
+    </button>
+
+    <button class="nav" onclick="showPage('missions')">
+      Missions
+    </button>
+
+    <button class="nav" onclick="showPage('events')">
+      Events
+    </button>
+  </nav>
+
+  <div class="side-bottom">
+    <span class="dot"></span>
+    MQTT / ERP Online
+    <br>
+    <small>VDA-5050 Lab</small>
+  </div>
+</aside>
+
+<main>
+
+<header>
+  <div>
+    <h1 id="title">Operations Dashboard</h1>
+    <p>Live fleet and VDA-5050 order management</p>
+  </div>
+
+  <button class="primary" onclick="openModal()">
+    + Create Order
+  </button>
+</header>
+
+<section id="dashboard" class="page active">
+
+  <div class="cards">
+    <div class="card">
+      <span>Total Orders</span>
+      <strong id="total">0</strong>
+    </div>
+
+    <div class="card">
+      <span>Active Missions</span>
+      <strong id="active">0</strong>
+    </div>
+
+    <div class="card">
+      <span>Completed Orders</span>
+      <strong id="completed">0</strong>
+    </div>
+
+    <div class="card">
+      <span>Available Robots</span>
+      <strong id="available">0</strong>
+    </div>
+  </div>
+
+  <div class="two">
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Robot Fleet</h2>
+        <button onclick="refresh()">Refresh</button>
+      </div>
+
+      <div id="robot-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Recent Orders</h2>
+        <button onclick="showPage('orders')">
+          View All
+        </button>
+      </div>
+
+      <div id="recent"></div>
+    </div>
+
+  </div>
+</section>
+
+<section id="orders" class="page">
+
+  <div class="panel">
+
+    <div class="panel-head">
+      <h2>Order Management</h2>
+
+      <button
+        class="primary"
+        onclick="openModal()"
+      >
+        + Create Order
+      </button>
+    </div>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Robot</th>
+            <th>Type</th>
+            <th>Priority</th>
+            <th>Route</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+
+        <tbody id="orders-table"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+</section>
+
+<section id="robots" class="page">
+
+  <div class="panel">
+
+    <div class="panel-head">
+      <h2>Robot Fleet</h2>
+      <button onclick="refresh()">Refresh</button>
+    </div>
+
+    <div id="robot-grid" class="robot-grid"></div>
+
+  </div>
+
+</section>
+
+<section id="missions" class="page">
+
+  <div class="panel">
+
+    <div class="panel-head">
+      <h2>Mission Control</h2>
+    </div>
+
+    <div id="missions-list"></div>
+
+  </div>
+
+</section>
+
+<section id="events" class="page">
+
+  <div class="panel">
+
+    <div class="panel-head">
+      <h2>Live System Events</h2>
+    </div>
+
+    <div id="events-list"></div>
+
+  </div>
+
+</section>
+
+</main>
+</div>
+
+<div id="modal" class="modal hidden">
+
+  <div class="modal-box">
+
+    <div class="modal-head">
+      <h2>Create VDA-5050 Order</h2>
+      <button onclick="closeModal()">×</button>
+    </div>
+
+    <label>Order ID</label>
+    <input id="order-id" placeholder="order003">
+
+    <label>Robot</label>
+
+    <select id="robot-id">
+      <option value="">Waiting for fleet registry...</option>
+    </select>
+
+    <label>Priority</label>
+
+    <select id="priority">
+      <option>NORMAL</option>
+      <option>HIGH</option>
+      <option>LOW</option>
+    </select>
+
+    <label for="planning-mode">Plan by</label>
+    <select id="planning-mode" onchange="updateOrderFields()">
+      <option value="route">Required route</option>
+      <option value="destination">Destination only (shortest map path)</option>
+      <option value="both">Required route, then destination</option>
+    </select>
+
+    <div id="start-location" class="location-preview">
+      Robot location: waiting for live telemetry...
+    </div>
+
+    <div id="route-field">
+      <label for="route">Required route nodes</label>
+      <input
+        id="route"
+        placeholder="N2,N3 (must pass through in order)"
+      >
+      <small>Enter waypoint node IDs separated by commas.</small>
+    </div>
+
+    <div id="destination-field" class="hidden">
+      <label for="destination">Destination</label>
+      <input
+        id="destination"
+        placeholder="N4"
+      >
+      <small>Destination-only orders use the shortest connected map path.</small>
+    </div>
+
+    <div class="modal-actions">
+
+      <button onclick="closeModal()">
+        Cancel
+      </button>
+
+      <button
+        class="primary"
+        onclick="createOrder()"
+      >
+        Create Order
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
