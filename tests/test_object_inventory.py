@@ -92,6 +92,9 @@ class SceneObject:
     def getField(self, name):
         return None
 
+    def getBaseTypeName(self):
+        return "Solid"
+
 
 class Children:
     def __init__(self, nodes):
@@ -194,6 +197,152 @@ class ObjectDiscoveryTests(unittest.TestCase):
         record = discover_objects(Supervisor(world_objects()))["objects"][-1]
 
         self.assertEqual(record["mass_kg"], 10.0)
+
+    def test_beer_bottle_and_unlisted_solid_are_discovered_generically(self):
+        nodes = [
+            SceneObject(10, "BeerBottle", "beer bottle", [0, 0, 0]),
+            SceneObject(11, "CustomPart", "custom part", [1, 0, 0]),
+        ]
+
+        records = discover_objects(Supervisor(nodes))["objects"]
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["object_type"], "beer_bottle")
+        self.assertEqual(records[0]["semantic_category"], "unknown")
+        self.assertIsNone(records[0]["geometry"])
+        self.assertEqual(records[1]["object_type"], "custom_part")
+
+    def test_duplicate_display_names_keep_distinct_node_identities(self):
+        nodes = [
+            SceneObject(20, "Solid", "same name", [0, 0, 0]),
+            SceneObject(21, "Solid", "same name", [1, 0, 0]),
+        ]
+
+        records = discover_objects(Supervisor(nodes))["objects"]
+
+        self.assertEqual(
+            [record["object_id"] for record in records],
+            ["webots-node:20", "webots-node:21"],
+        )
+
+    def test_navigation_and_infrastructure_nodes_are_excluded_from_cargo(self):
+        nodes = [
+            SceneObject(30, "Solid", "N5", [0, 0, 0], definition="N5"),
+            SceneObject(31, "Floor", "floor", [0, 0, 0]),
+            SceneObject(32, "BeerBottle", "beer bottle", [0, 0, 0]),
+        ]
+
+        records = discover_objects(Supervisor(nodes))["objects"]
+
+        self.assertEqual([record["object_id"] for record in records], ["webots-node:32"])
+
+    def test_nested_scene_solids_are_discovered(self):
+        child = SceneObject(42, "BeerBottle", "nested bottle", [1, 2, 3])
+        parent = SceneObject(41, "Solid", "holder", [0, 0, 0])
+
+        class ChildField:
+            def getCount(self):
+                return 1
+
+            def getMFNode(self, index):
+                return child if index == 0 else None
+
+        parent.getField = lambda name: ChildField() if name == "children" else None
+
+        records = discover_objects(Supervisor([parent]))["objects"]
+
+        by_id = {record["object_id"]: record for record in records}
+        self.assertEqual(set(by_id), {"webots-node:41", "webots-node:42"})
+        self.assertEqual(by_id["webots-node:42"]["parent_id"], "webots-node:41")
+
+    def test_exposed_indexed_mesh_geometry_is_extracted_without_proto_name_rules(self):
+        class ValueField:
+            def __init__(self, value):
+                self.value = value
+
+            def getSFNode(self):
+                return self.value
+
+            def getCount(self):
+                return len(self.value)
+
+            def getMFNode(self, index):
+                return self.value[index]
+
+            def getMFVec3f(self, index):
+                return self.value[index]
+
+            def getSFVec3f(self):
+                return self.value
+
+            def getSFRotation(self):
+                return self.value
+
+        class GenericNode:
+            def __init__(self, node_id, type_name, fields=None):
+                self.node_id = node_id
+                self.type_name = type_name
+                self.fields = fields or {}
+
+            def getId(self):
+                return self.node_id
+
+            def getTypeName(self):
+                return self.type_name
+
+            def getBaseTypeName(self):
+                return "Solid"
+
+            def getProtoTypeName(self):
+                return "CustomMesh"
+
+            def getDef(self):
+                return ""
+
+            def getPosition(self):
+                return [0.0, 0.0, 0.0]
+
+            def getOrientation(self):
+                return [
+                    1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0,
+                ]
+
+            def getProtoField(self, name):
+                return None
+
+            def getField(self, name):
+                return self.fields.get(name)
+
+        coordinates = GenericNode(
+            104,
+            "Coordinate",
+            {"point": ValueField([
+                (-0.1, -0.05, 0.0),
+                (0.1, 0.05, 0.0),
+                (-0.1, -0.05, 0.3),
+                (0.1, 0.05, 0.3),
+            ])},
+        )
+        mesh = GenericNode(103, "IndexedFaceSet", {"coord": ValueField(coordinates)})
+        shape = GenericNode(
+            102,
+            "Shape",
+            {
+                "geometry": ValueField(mesh),
+                "translation": ValueField((1.0, 0.0, 0.0)),
+                "rotation": ValueField((0.0, 0.0, 1.0, 0.0)),
+            },
+        )
+        solid = GenericNode(101, "Solid", {"children": ValueField([shape])})
+
+        record = discover_objects(Supervisor([solid]))["objects"][0]
+
+        self.assertEqual(record["geometry_status"], "VERIFIED")
+        self.assertEqual(record["geometry"]["bounds"]["min"]["z"], 0.0)
+        self.assertEqual(record["geometry"]["bounds"]["max"]["z"], 0.3)
+        self.assertAlmostEqual(record["geometry"]["bounds"]["min"]["x"], 0.9)
 
     def test_object_supervisor_is_excluded_from_robot_fleet_discovery(self):
         class RobotNode:
@@ -427,6 +576,26 @@ class ObjectInventoryApiTests(unittest.TestCase):
             [relation["type"] for relation in detail.json["relationships"]],
         )
         self.assertGreaterEqual(len(relations.json["relationships"]), 3)
+
+    def test_api_returns_dynamically_discovered_unknown_geometry_object(self):
+        discovered = discover_objects(
+            Supervisor([
+                SceneObject(77, "BeerBottle", "beer bottle", [0, 0, 0]),
+            ])
+        )
+        registry = ObjectRegistry()
+        erp.update_object_inventory(
+            registry.update(fresh_snapshot(discovered["objects"]))
+        )
+
+        response = self.client.get("/api/objects")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["objects"][0]["object_type"], "beer_bottle")
+        self.assertEqual(
+            response.json["objects"][0]["geometry_status"],
+            "UNKNOWN",
+        )
 
     def test_object_api_rejects_invalid_identifier(self):
         response = self.client.get("/api/objects/%21")

@@ -85,6 +85,17 @@ class LoadVerificationTests(unittest.TestCase):
     def snapshot(self, record):
         return {"timestamp": timestamp(), "objects": [record]}
 
+    def test_missing_object_geometry_never_produces_load_evidence(self):
+        record = object_record()
+        record.pop("geometry")
+
+        result = annotate_load_verification(
+            self.snapshot(record),
+            [carrier()],
+        )
+
+        self.assertNotIn("load_verification", result["objects"][0])
+
     def test_fresh_unique_geometric_support_generates_load_evidence(self):
         snapshot = self.snapshot(object_record())
 

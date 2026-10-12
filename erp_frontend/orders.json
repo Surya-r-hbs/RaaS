@@ -1,0 +1,82 @@
+[
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-12T06:02:28.989Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "youBot",
+    "orderId": "order001",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N1",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N0",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "STOPPED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N0",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 0,
+    "recoveryReason": null
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-12T06:04:27.574Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "youBot",
+    "orderId": "oredr002",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N4",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "COMPLETED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N4",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null
+  }
+]

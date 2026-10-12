@@ -262,12 +262,16 @@ consistent with the Webots world for required-waypoint routing.
 ## Warehouse object inventory
 
 The warehouse world includes a dedicated Webots Supervisor (`object_supervisor`)
-that scans supported top-level scene objects once per second. It publishes raw
-snapshots on `warehouse/objects/raw`; the Fleet controller validates the
-snapshot, recalculates geometric relationships, and publishes a retained
-snapshot on `warehouse/objects`. The ERP subscribes to that processed topic and
-does not invent or persist scene objects when Webots is offline. The Supervisor
-is excluded from robot fleet discovery.
+that scans eligible scene solids once per second, including nested solids where
+the Supervisor exposes the scene graph. It excludes robots and navigation
+markers from cargo discovery, assigns IDs from DEF names or Webots node IDs, and
+reports geometry as unknown when the PROTO does not expose usable shape or
+bounding-object data. It publishes raw snapshots on `warehouse/objects/raw`;
+the Fleet controller validates the snapshot, recalculates geometric
+relationships, and publishes a retained snapshot on `warehouse/objects`. The
+ERP subscribes to that processed topic and does not invent or persist scene
+objects when Webots is offline. The Supervisor is excluded from robot fleet
+discovery.
 
 The Objects page displays the live object inventory, geometry-derived
 relationships, filters, and object details. Its refresh action publishes to
@@ -287,14 +291,24 @@ by Fleet instead of silently creating a partial inventory.
 
 Positions and bounds use this project's Webots convention: **X/Y are the floor
 plane and Z is height**. Each object's position is the PROTO origin; its local
-bounds, PROTO dimensions and rotation are kept separately. Objects currently
-discovered are Table, PlasticCrate, WaterBottle, and WoodenBox. `ON_TOP_OF`
+bounds, PROTO dimensions and rotation are kept separately. The inventory
+accepts newly added solid PROTOs without a name allowlist. `ON_TOP_OF`
 requires near-contact with a modeled support surface plus a 60% minimum
 footprint overlap. `INSIDE` checks the transformed object bounds against a
 known container interior. These are geometric checks, not sensor detections;
 unmodeled occlusion, collisions, and unknown container interiors are not
 inferred. Objects without a Webots DEF use a node ID that is stable during a
-simulation run, but may change after reloading the world.
+simulation run, but may change after reloading the world. The checked-in world
+is `webots/worlds/RaaS_warehouse.wbt`; no `RaaS_warehouse(3).wbt` variant is
+present in this workspace.
+
+The checked-in `BeerBottle` is now eligible for discovery, but its external
+R2025a PROTO exposes only translation, rotation, name, and mass; its mesh is
+inside the PROTO and has no exposed bounding object. If Webots does not expose
+those internal mesh nodes to the Supervisor, the bottle is listed with unknown
+geometry and cannot produce a verified support/load relationship. Do not treat
+visual proximity as load proof. Dispatch also remains blocked until the
+YouBot's payload and stability limits are verified.
 
 Run the regression tests, including object discovery, geometry, API freshness,
 refresh handling, and the existing robot/fleet behavior, with:

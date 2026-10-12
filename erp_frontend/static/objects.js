@@ -150,9 +150,19 @@ function renderObjectDetails() {
       Z ${objectEscape(object.position.z.toFixed(3))}</p>
     <p><strong>Reference:</strong> ${objectEscape(object.position_reference || "PROTO_ORIGIN")}</p>
     <p><strong>Dimensions:</strong> ${objectEscape(objectDimensions(object))}</p>
+    <p><strong>Geometry:</strong> ${objectEscape(object.geometry_status || "UNKNOWN")}
+      ${object.geometry?.source
+        ? `(${objectEscape(object.geometry.source)})`
+        : "(dimensions unavailable from Supervisor)"}</p>
+    <p><strong>PROTO / node type:</strong>
+      ${objectEscape(object.proto_type || object.node_type || "unknown")}</p>
+    <p><strong>Category:</strong>
+      ${objectEscape(object.semantic_category || "unknown")}</p>
     <p><strong>Status:</strong> ${objectEscape(object.status || "UNKNOWN")}</p>
     <p><strong>Source:</strong> ${objectEscape(object.source || "Unknown")}</p>
     <p><strong>Last seen:</strong> ${objectEscape(formatObjectTime(object.last_seen))}</p>
+    <p><strong>Simulation session:</strong>
+      ${objectEscape(object.simulation_session_id || "Unavailable")}</p>
     <p><strong>Relationships:</strong></p>
     ${relationships.length
       ? `<ul>${relationships.map(value => `<li>${objectEscape(value)}</li>`).join("")}</ul>`

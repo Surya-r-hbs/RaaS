@@ -55,6 +55,62 @@
           "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
         }
       ]
+    },
+    {
+      "taskId": "transport-78172ab8fe8f4a8bbc3c656fa7c0f5c7",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:33136",
+      "objectName": "beer bottle",
+      "destinationNode": "N4",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T06:02:00.348Z",
+      "updatedAt": "2026-10-12T06:02:00.349Z",
+      "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification.",
+      "carrierRobotId": "TIAGo",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T06:02:00.349Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T06:02:00.349Z",
+          "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
+        }
+      ]
+    },
+    {
+      "taskId": "transport-729facedf20446878cb70613163ed98d",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:32728",
+      "objectName": "water bottle",
+      "destinationNode": "N1",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T06:04:56.221Z",
+      "updatedAt": "2026-10-12T06:04:56.221Z",
+      "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification.",
+      "carrierRobotId": "youBot",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T06:04:56.221Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T06:04:56.221Z",
+          "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
+        }
+      ]
     }
   ],
   "loads": {}
