@@ -267,7 +267,7 @@
     <div class="panel-head">
       <div>
         <h2>Transport an Existing Object</h2>
-        <p>Preloaded objects only. This form never simulates pickup or attachment.</p>
+        <p>Preloaded objects only. This form does not pick, attach, or reposition objects.</p>
       </div>
       <button onclick="refreshTransportOptions()">Refresh live options</button>
     </div>
@@ -289,8 +289,10 @@
     <label>Handling mode</label>
     <input value="Already loaded (PRELOADED)" disabled>
     <p class="transport-safety-note">
-      Dispatch is enabled only when a fresh Webots load verification and verified
-      carrier capacity, platform dimensions, and stability limits are available.
+      Before creating a task, physically place the object on the carrier's support
+      surface in Webots. A fresh Supervisor geometry check must confirm the load.
+      Dispatch also requires verified payload, platform, and stability limits.
+      The current YouBot profile has no verified payload or stability rating.
     </p>
     <button class="primary" onclick="createTransportTask()">Create transport task</button>
   </div>

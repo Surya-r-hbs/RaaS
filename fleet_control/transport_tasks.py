@@ -95,6 +95,9 @@ class LoadManager:
             or capability.get("canCarryPreloaded") is not True
             or capability.get("stabilityVerified") is not True
         ):
+            reason = capability.get("reason")
+            if isinstance(reason, str) and reason.strip():
+                return f"Carrier transport capability is unverified: {reason.strip()}"
             return (
                 "Carrier carrying or stability capability is unverified "
                 "or unsupported"

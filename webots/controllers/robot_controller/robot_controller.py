@@ -1,4 +1,5 @@
 import os
+import queue
 import time
 import uuid
 
@@ -135,6 +136,7 @@ class RobotController:
 
         self.state = RobotState()
         self.last_error = None
+        self.manipulation_commands = queue.Queue()
         self.agent_session_id = uuid.uuid4().hex
         self.status_sequence = 0
 
@@ -151,6 +153,7 @@ class RobotController:
             {
                 "capabilities": self.adapter.capability_names,
                 "availableDevices": self.adapter.available_devices,
+                "transportCapability": self.adapter.transport_capability,
                 "agentSessionId": self.agent_session_id,
             },
         )
@@ -178,7 +181,21 @@ class RobotController:
         print(command)
         print("--------------------")
 
+        if not isinstance(command, dict):
+            print("ERROR: Robot command must be a JSON object")
+            return
+
         command_type = command.get("command")
+
+        if command_type == "PICK_AND_PLACE":
+            if "PICK_AND_PLACE" not in self.adapter.capabilities:
+                self.last_error = (
+                    f"Pick-and-place is not supported by {self.robot_type}"
+                )
+                self.publish_status()
+                return
+            self.manipulation_commands.put(command)
+            return
 
         # --------------------
         # STOP ROBOT
@@ -212,6 +229,13 @@ class RobotController:
 
             print("ERROR: Missing orderId")
 
+            return
+
+        if getattr(self.adapter, "task_active", False):
+            self.last_error = (
+                "Cannot start navigation while pick-and-place is active"
+            )
+            self.publish_status()
             return
 
         if not node_id:
@@ -324,6 +348,8 @@ class RobotController:
         print(f"Target node   : {self.state.target_node}")
         print(f"Target edge   : {self.state.target_edge}")
 
+        self._discard_queued_manipulation_commands()
+
         # This directly stops the navigation/motors.
         try:
             self.adapter.stop()
@@ -366,6 +392,7 @@ class RobotController:
             )
             return
 
+        self._discard_queued_manipulation_commands()
         try:
             self.adapter.stop()
         except Exception as error:
@@ -377,6 +404,16 @@ class RobotController:
         self.state.clear_order()
         self.last_error = None
         self.publish_status(recovered_order_id=order_id)
+
+    def _discard_queued_manipulation_commands(self):
+        commands = getattr(self, "manipulation_commands", None)
+        if commands is None:
+            return
+        while True:
+            try:
+                commands.get_nowait()
+            except queue.Empty:
+                return
 
     # --------------------
     # STATUS
@@ -403,6 +440,7 @@ class RobotController:
             "robotType": self.robot_type,
             "capabilities": self.adapter.capability_names,
             "availableDevices": self.adapter.available_devices,
+            "transportCapability": self.adapter.transport_capability,
 
             # Fleet controller expects this.
             "state": state,
@@ -418,6 +456,7 @@ class RobotController:
                 else current_node
             ),
             "position": position,
+            "orientation": self.adapter.get_orientation(),
             "worldRobots": self.world_robots,
             "error": self.last_error,
             "agentSessionId": self.agent_session_id,
@@ -437,6 +476,9 @@ class RobotController:
         }
         if recovered_order_id:
             message["recoveredOrderId"] = recovered_order_id
+        manipulation = getattr(self.adapter, "manipulation_status", None)
+        if manipulation is not None:
+            message["manipulation"] = manipulation
 
         print("--------------------")
         print("ROBOT STATUS")
@@ -450,6 +492,37 @@ class RobotController:
 # --------------------
 
     def update(self):
+
+        try:
+            command = self.manipulation_commands.get_nowait()
+        except queue.Empty:
+            command = None
+        if command is not None:
+            if self.state.state == "EXECUTING":
+                self.last_error = (
+                    "Cannot start pick-and-place while the robot is navigating"
+                )
+                self.publish_status()
+            else:
+                try:
+                    self.adapter.start_pick_and_place(command)
+                except (TypeError, ValueError, RuntimeError) as error:
+                    self.last_error = str(error)
+                else:
+                    self.last_error = None
+                self.publish_status()
+
+        if getattr(self.adapter, "task_active", False):
+            previous_manipulation = self.adapter.manipulation_status
+            self.adapter.update_manipulation()
+            if self.adapter.manipulation_status != previous_manipulation:
+                if (
+                    self.adapter.manipulation_status
+                    and self.adapter.manipulation_status["state"]
+                    in {"COMPLETED", "FAILED", "CANCELLED"}
+                ):
+                    self.last_error = self.adapter.manipulation_status["error"]
+                self.publish_status()
 
         if self.state.state != "EXECUTING":
             return

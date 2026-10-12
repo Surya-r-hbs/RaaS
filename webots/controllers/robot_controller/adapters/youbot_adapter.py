@@ -77,6 +77,11 @@ class _YoubotNavigation:
 
 class YoubotAdapter(BaseRobot):
     WHEEL_MOTOR_NAMES = ("wheel1", "wheel2", "wheel3", "wheel4")
+    # Conservative first plate collision box from the R2025a Youbot.proto.
+    SUPPORT_SURFACE = {
+        "center": {"x": -0.147, "y": 0.0, "z": 0.0485},
+        "dimensions": {"x": 0.25, "y": 0.17, "z": 0.007},
+    }
 
     def __init__(self, robot, node_manager, robot_type):
         super().__init__(robot, node_manager, robot_type)
@@ -94,6 +99,23 @@ class YoubotAdapter(BaseRobot):
             node_manager,
         )
         self.capabilities.add("NAVIGATION")
+
+    @property
+    def transport_capability(self):
+        capability = {
+            "status": "UNVERIFIED",
+            "reason": (
+                "The Webots YouBot model exposes support geometry, but this "
+                "world has no verified payload or stability rating."
+            ),
+        }
+        get_self = getattr(self.robot, "getSelf", None)
+        node = get_self() if callable(get_self) else None
+        get_proto_field = getattr(node, "getProtoField", None)
+        field = get_proto_field("numberOfArms") if callable(get_proto_field) else None
+        if field is not None and field.getSFInt32() < 2:
+            capability["supportSurface"] = self.SUPPORT_SURFACE
+        return capability
 
     def get_position(self):
         return self.navigation.get_robot_position()

@@ -36,6 +36,7 @@ from config import (
 )
 
 from mission import Mission, validate_order
+from load_verification import annotate_load_verification
 from object_registry import ObjectRegistry
 from robot_registry import RobotRegistry
 
@@ -997,6 +998,10 @@ def on_message(
 
     if message.topic == OBJECTS_RAW_TOPIC:
         try:
+            payload = annotate_load_verification(
+                payload,
+                robot_registry.snapshot(),
+            )
             object_registry.update(payload)
         except ValueError as error:
             log(f"Invalid Webots object inventory: {error}")

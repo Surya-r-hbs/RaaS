@@ -50,6 +50,22 @@ class BaseRobot:
             "z": float(position[2]),
         }
 
+    def get_orientation(self):
+        return [
+            float(value)
+            for value in self.robot.getSelf().getOrientation()
+        ]
+
+    @property
+    def transport_capability(self):
+        return {
+            "status": "UNVERIFIED",
+            "reason": (
+                f"No verified preloaded-carrying profile is configured "
+                f"for {self.robot_type}."
+            ),
+        }
+
     def move_to_node(self, node_id):
         raise UnsupportedRobotOperation(
             f"Navigation is not implemented for {self.robot_type}"

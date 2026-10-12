@@ -28,9 +28,25 @@ async function refreshTransportOptions() {
       return;
     }
     transportOptions = payload;
-    status.textContent =
-      "Live Webots inventory and configured map nodes are available. "
-      + "Carrier/load compatibility is checked again by the backend on dispatch.";
+    const hasVerifiedCarrier = (payload.carriers || []).some(robot => {
+      const capability = robot.transportCapability;
+      const hasPositiveLimit = value => (
+        typeof value === "number" && Number.isFinite(value) && value > 0
+      );
+      return capability?.status === "VERIFIED"
+        && capability.canCarryPreloaded === true
+        && capability.stabilityVerified === true
+        && hasPositiveLimit(capability.maxPayloadKg)
+        && hasPositiveLimit(capability.platformDimensions?.x)
+        && hasPositiveLimit(capability.platformDimensions?.y);
+    });
+    status.textContent = hasVerifiedCarrier
+      ? "Live Webots inventory and map nodes are available. Objects must already "
+        + "be geometrically verified on a carrier; object-specific compatibility "
+        + "is checked by the backend."
+      : "Live Webots inventory and map nodes are available, but no carrier has "
+        + "a verified payload and stability profile. Dispatch is blocked until "
+        + "a verified carrier profile is provided.";
     status.classList.remove("inventory-status-error");
 
     const objectSelect = document.getElementById("transport-object");
@@ -67,7 +83,9 @@ async function refreshTransportOptions() {
         const capability = robot.transportCapability;
         const capabilityLabel = capability?.status === "VERIFIED"
           ? "transport capability verified"
-          : "transport capability unverified";
+          : `transport capability unverified — ${
+            capability?.reason || "payload and stability limits are unknown"
+          }`;
         return `<option value="${transportEscape(value)}">
           ${transportEscape(robot.robotId)} — ${transportEscape(robot.robotType || "Unknown")}
           (${transportEscape(capabilityLabel)})

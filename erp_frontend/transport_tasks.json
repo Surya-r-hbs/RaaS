@@ -1,0 +1,61 @@
+{
+  "tasks": [
+    {
+      "taskId": "transport-5b56470f55054a8393329fb349d034a3",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:32728",
+      "objectName": "water bottle",
+      "destinationNode": "N5",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T05:19:35.364Z",
+      "updatedAt": "2026-10-12T05:19:35.364Z",
+      "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification.",
+      "carrierRobotId": "youBot",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T05:19:35.364Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T05:19:35.364Z",
+          "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
+        }
+      ]
+    },
+    {
+      "taskId": "transport-8b56411d665347f7b09b8517e6c164eb",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:32728",
+      "objectName": "water bottle",
+      "destinationNode": "N5",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T05:19:42.323Z",
+      "updatedAt": "2026-10-12T05:19:42.323Z",
+      "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification.",
+      "carrierRobotId": "youBot",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T05:19:42.323Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T05:19:42.323Z",
+          "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
+        }
+      ]
+    }
+  ],
+  "loads": {}
+}

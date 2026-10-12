@@ -92,8 +92,36 @@ Terminal 3:
     webots webots/worlds/RaaS_warehouse.wbt
 
 The world assigns the `robot_controller` controller to the E-puck, MiR100,
-TIAGo, and YouBot. The controller program is
+TIAGo, YouBot, and UR10e. The UR10e uses the Robotiq EPick vacuum gripper for
+physics-based pick-and-place. The controller program is
 `webots/controllers/robot_controller/robot_controller.py`.
+
+### UR10e pick-and-place
+
+Publish a `PICK_AND_PLACE` command to
+`robot/DemoRobot/UR10e/command` (or the robot's configured manufacturer and ID).
+`pickPosition` and `placePosition` are world-coordinate suction-cup contact
+points (`x`, `y`, and `z` in meters); they are not object-center coordinates.
+The controller approaches from above, enables suction at the pick point,
+checks gripper presence, transfers the object above the higher point, releases
+it at the place point, and reports progress in the robot status `manipulation`
+field.
+
+Example:
+
+```json
+{
+  "command": "PICK_AND_PLACE",
+  "taskId": "bottle-transfer-001",
+  "pickPosition": {"x": 3.94, "y": -4.73, "z": 1.06},
+  "placePosition": {"x": 4.0, "y": -4.3, "z": 0.74}
+}
+```
+
+Run this command only when the UR10e is idle and the contact points are within
+reach. The EPick gripper works best with flat, suction-compatible surfaces.
+The example uses the water-bottle top and a clear spot on the table in the
+current world; adjust the contact coordinates if the world has changed.
 
 Terminal 4:
 
@@ -301,22 +329,30 @@ at that node. A verified load remains associated with the carrier after
 delivery; ordinary empty-robot dispatch is blocked until a later verified
 unload is reported.
 
-**This workspace does not yet produce a physical load-verification signal or a
-verified carrier payload/platform/stability profile.** Therefore, on the current
-world, transport requests are expected to remain `LOAD_REQUIRED` or fail
-carrier-compatibility checks; this is intentional and safer than assuming the
-box is loaded. The `object_supervisor` does not create `load_verification`
-records, and the existing robot adapters report navigation only. Integration
-of a real support/attachment verifier and measured carrier limits is required
-before a live task can become dispatchable. In particular, the current world
-sets YouBot `numberOfArms 0`; its adapter only advertises `NAVIGATION`, and no
-payload capacity, platform dimensions, or stability limit is configured.
+The ERP Transport Tasks form is for preloaded objects only: users must first
+place an object physically on a carrier's support surface in Webots. The page
+does not pick, attach, or reposition objects. A `LOAD_REQUIRED` task means the
+fresh Supervisor geometry check did not confirm that the object is supported by
+the selected carrier. After physical staging, fresh inventory updates can
+reconcile the task automatically, but dispatch still requires a verified
+payload and stability profile.
+
+The fleet derives `load_verification` only from a fresh object pose, a fresh
+carrier pose/orientation, and support geometry reported by that robot adapter.
+The Webots YouBot adapter exposes the central plate's measured support patch
+from the Webots model for this geometric check, but does not claim a payload or
+stability rating. The current world sets YouBot `numberOfArms 0`; its adapter
+only advertises `NAVIGATION`, and its payload capacity and stability limits
+remain unknown. The WoodenBox in the checked-in world is on the table, not on
+the YouBot, and its footprint exceeds that conservative support patch.
+Therefore it must remain `LOAD_REQUIRED`; even a geometrically verified load
+cannot be dispatched until a `VERIFIED` payload/stability profile is configured.
 Neither robot identity nor visual fit alone is accepted as proof of carrying
 capability.
 
-The object inventory may accept a Supervisor-produced `load_verification`
-record only when it has a fresh, timezone-aware timestamp (maximum age five
-seconds), matching object ID, carrier robot/manufacturer, `verified: true`,
+The inventory accepts a fleet-produced `load_verification` record only when
+it has a fresh, timezone-aware timestamp (maximum age five seconds), matching
+object ID, carrier robot/manufacturer, `verified: true`,
 and `method: "SUPERVISOR_GEOMETRY"`. A carrier agent must separately publish a
 `transportCapability` profile containing `status: "VERIFIED"`,
 `canCarryPreloaded: true`, `stabilityVerified: true`, a positive

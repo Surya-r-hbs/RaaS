@@ -4,6 +4,7 @@ from adapters.base_robot import BaseRobot
 from adapters.epuck_adapter import EpuckAdapter
 from adapters.mir100_adapter import Mir100Adapter
 from adapters.tiago_adapter import TiagoAdapter
+from adapters.ur10e_adapter import UR10eAdapter
 from adapters.youbot_adapter import YoubotAdapter
 
 
@@ -11,6 +12,7 @@ _ADAPTERS = {
     "epuck": EpuckAdapter,
     "mir100": Mir100Adapter,
     "tiago": TiagoAdapter,
+    "ur10e": UR10eAdapter,
     "youbot": YoubotAdapter,
 }
 
