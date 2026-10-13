@@ -96,7 +96,11 @@ class Navigation:
         if self.gps is not None:
             values = self.gps.getValues()
         else:
-            values = self.robot.getSelf().getPosition()
+            try:
+                values = self.robot.getSelf().getPosition()
+            except (AttributeError, RuntimeError):
+                position = self.node_manager.get_robot_position()
+                return position
 
         return {
             "x": float(values[0]),
@@ -119,8 +123,8 @@ class Navigation:
 
         try:
             orientation = self.robot.getSelf().getOrientation()
-        except Exception:
-            return 1.0, 0.0
+        except (AttributeError, RuntimeError):
+            orientation = self.node_manager.get_robot_orientation()
 
         if not orientation:
             return 1.0, 0.0

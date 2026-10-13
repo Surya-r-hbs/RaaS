@@ -13,9 +13,9 @@ print("--------------------")
 # --------------------
 
 try:
-    from controller import Supervisor
+    from controller import Robot
 except ImportError:  # pragma: no cover - only used outside Webots runtime.
-    class Supervisor:
+    class Robot:
         def __init__(self, *args, **kwargs):
             self._devices = {}
 
@@ -24,32 +24,19 @@ except ImportError:  # pragma: no cover - only used outside Webots runtime.
                 raise RuntimeError(f"Device '{name}' is unavailable outside Webots.")
             return self._devices[name]
 
-        def getRoot(self):
-            class _Root:
-                def getField(self, _name):
-                    return None
-            return _Root()
-
-        def getSelf(self):
-            return self
-
-        def getOrientation(self):
-            return [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-
         def step(self, _time_step):
             return -1
 
 from config import (
-    ROBOT_ID,
     MANUFACTURER,
     TIME_STEP,
-    resolve_robot_identity,
+    WEBOTS_SIMULATION_MODE,
 )
 
 from robot_state import RobotState
 from node_manager import NodeManager
 from mqtt_handler import MQTTHandler
-from robot_discovery import discover_world_robots
+from robot_discovery import discover_local_robot
 from adapters import create_robot_adapter
 from adapters.base_robot import UnsupportedRobotOperation
 
@@ -67,50 +54,18 @@ class RobotController:
         # WEBOTS
         # --------------------
 
-        self.robot = Supervisor()
-        fallback_id, fallback_manufacturer = resolve_robot_identity(self.robot)
-        world_robots = discover_world_robots(
-            self.robot,
-            fallback_manufacturer,
-            fallback_id,
-        )
-        self_robot_id = self.robot.getSelf().getId()
-        active_robot = next(
-            (
-                record
-                for record, node_id in world_robots
-                if node_id == self_robot_id
-            ),
-            None,
-        )
-        self.robot_id = (
-            active_robot["robotId"]
-            if active_robot
-            else fallback_id
-        )
-        self.robot_type = (
-            active_robot["robotType"]
-            if active_robot
-            else "Unknown"
-        )
-        self.world_robots = [
-            record
-            for record, _node_id in world_robots
-        ]
-        self.robot_id = self.robot_id or ROBOT_ID
-        self.manufacturer = (
-            active_robot.get("manufacturer")
-            if active_robot
-            else fallback_manufacturer
-        ) or MANUFACTURER
+        self.robot = Robot()
+        local_robot = discover_local_robot(self.robot, MANUFACTURER)
+        self.robot_id = local_robot["robotId"]
+        self.robot_type = local_robot["robotType"]
+        self.world_robots = []
+        self.manufacturer = local_robot["manufacturer"]
 
         # --------------------
         # NODE MANAGER
         # --------------------
 
-        self.node_manager = NodeManager(self.robot)
-
-        self.node_manager.discover_nodes()
+        self.node_manager = NodeManager(self.robot_id)
         self.node_manager.print_nodes()
 
         # --------------------
@@ -154,8 +109,11 @@ class RobotController:
                 "capabilities": self.adapter.capability_names,
                 "availableDevices": self.adapter.available_devices,
                 "transportCapability": self.adapter.transport_capability,
+                "runtimeMode": "WEBOTS_SIMULATION",
+                "simulationModeEnabled": WEBOTS_SIMULATION_MODE,
                 "agentSessionId": self.agent_session_id,
             },
+            world_snapshot_callback=self.handle_world_snapshot,
         )
 
         # --------------------
@@ -169,6 +127,23 @@ class RobotController:
         print("--------------------")
 
         self.mqtt.connect()
+
+    def handle_world_snapshot(self, payload):
+        try:
+            self.node_manager.update_world_snapshot(payload)
+        except (TypeError, ValueError, KeyError) as error:
+            print(f"Rejected invalid Webots world snapshot: {error}")
+            return
+        self.world_robots = payload["worldRobots"]
+        self.mqtt.world_robots = self.world_robots
+        if not any(
+            record.get("robotId") == self.robot_id
+            for record in self.world_robots
+        ):
+            print(
+                f"World snapshot does not contain this robot "
+                f"({self.robot_id}); pose-dependent tasks will be rejected"
+            )
 
     # --------------------
     # COMMAND HANDLER
@@ -424,7 +399,14 @@ class RobotController:
         self.status_sequence += 1
 
         state = self.state.state
-        position = self.adapter.get_position()
+        pose_error = None
+        try:
+            position = self.adapter.get_position()
+            orientation = self.adapter.get_orientation()
+        except RuntimeError as error:
+            position = None
+            orientation = None
+            pose_error = f"Webots world discovery is unavailable: {error}"
         nodes = self.node_manager.get_nodes()
         current_node = min(
             nodes,
@@ -432,7 +414,7 @@ class RobotController:
                 (nodes[node_id]["x"] - position["x"]) ** 2
                 + (nodes[node_id]["y"] - position["y"]) ** 2
             ),
-        ) if nodes else None
+        ) if nodes and position is not None else None
 
         message = {
             "robotId": self.robot_id,
@@ -441,6 +423,8 @@ class RobotController:
             "capabilities": self.adapter.capability_names,
             "availableDevices": self.adapter.available_devices,
             "transportCapability": self.adapter.transport_capability,
+            "runtimeMode": "WEBOTS_SIMULATION",
+            "simulationModeEnabled": WEBOTS_SIMULATION_MODE,
 
             # Fleet controller expects this.
             "state": state,
@@ -456,9 +440,9 @@ class RobotController:
                 else current_node
             ),
             "position": position,
-            "orientation": self.adapter.get_orientation(),
+            "orientation": orientation,
             "worldRobots": self.world_robots,
-            "error": self.last_error,
+            "error": self.last_error or pose_error,
             "agentSessionId": self.agent_session_id,
             "statusSequence": self.status_sequence,
 
@@ -534,7 +518,7 @@ class RobotController:
 
         try:
             result = self.adapter.move_to_node(target_node)
-        except UnsupportedRobotOperation as error:
+        except (UnsupportedRobotOperation, RuntimeError) as error:
             self.last_error = str(error)
             self.adapter.stop()
             self.state.set_error()
@@ -573,6 +557,26 @@ class RobotController:
                 self.publish_status()
 
                 return
+
+            if result.get("obstacleDetected"):
+                self.adapter.stop()
+                obstacle_message = (
+                    "Navigation stopped by Pioneer3at sonar at "
+                    f"{result.get('obstacleDistanceMeters', 'unknown')} m"
+                )
+                if self.last_error != obstacle_message:
+                    self.last_error = obstacle_message
+                    self.publish_status()
+                return
+
+            if (
+                isinstance(self.last_error, str)
+                and self.last_error.startswith(
+                    "Navigation stopped by Pioneer3at sonar at "
+                )
+            ):
+                self.last_error = None
+                self.publish_status()
 
             reached = result.get("reached", False)
 

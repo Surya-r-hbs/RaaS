@@ -151,10 +151,13 @@ Open:
 
 ## Robot fleet registry
 
-The Webots controller scans the world for robot instances and publishes
-discovery information to `robot/discovery`. The fleet controller maintains the
-authoritative registry and publishes retained snapshots on `fleet/robots`;
-the ERP reads this snapshot to show robot model, live state, and availability.
+The dedicated `object_supervisor` scans the Webots world for robot instances
+and navigation-node poses, publishing `WORLD_SNAPSHOT` messages on the
+existing `robot/discovery` topic. Each robot controller publishes its own
+identity, model, devices, and capabilities to that same topic. The fleet
+controller distinguishes world snapshots from live-agent registration and
+publishes retained snapshots on `fleet/robots`; the ERP reads this snapshot to
+show robot model, live state, and availability.
 
 The generic `robot_controller` delegates robot hardware access through an
 adapter under `webots/controllers/robot_controller/adapters/`. The E-puck
@@ -162,13 +165,15 @@ adapter reuses the existing X/Y floor navigation implementation. MiR100 and
 TIAGo adapters use their model-specific drive motors with the shared X/Y
 waypoint controller. The YouBot adapter uses four-wheel holonomic kinematics
 so it can drive toward a waypoint in any direction without first turning.
-These adapters use Supervisor pose data; the E-puck continues to use its GPS
-and compass.
+Mobile adapters use the dedicated Supervisor's current pose snapshots when
+their own robot API cannot provide localization. The E-puck continues to use
+its GPS for position and the world snapshot for orientation.
 
-The current `RaaS_warehouse.wbt` assigns `robot_controller` to the E-puck,
-MiR100, TIAGo, and YouBot. Each agent uses its Webots robot name as its ID and
-the configured `DemoRobot` manufacturer. All four robots advertise navigation
-and can be selected for orders when their agents are online and idle.
+The current `RaaS_warehouse.wbt` assigns `robot_controller` to the mobile
+robots and table-mounted UR10e instances. Each agent uses its unique Webots
+robot name as its ID and the configured `DemoRobot` manufacturer. Robots
+advertise their own supported capabilities and are selectable when their
+agents are online and idle.
 
 The Fleet registry's `currentOrder` is the live robot assignment; saved ERP
 orders are history and do not reserve a robot by themselves. Dispatch reserves
@@ -193,6 +198,19 @@ There is no Forklift robot in the current world. The Webots R2025a
 `Forklift.proto` is a `Solid` model, not a `Robot`, and exposes no controller or
 motor devices; it cannot run this robot agent as-is. Do not assign the
 E-puck-specific control behavior to it or advertise lifting/transport support.
+
+Preloaded transport is fail-closed unless the carrier advertises verified
+payload and stability limits. For Webots testing only, the YouBot has a
+simulation-only profile with a configured 0.5 kg assumed payload and modeled
+support patch; these are simulation assumptions, not a real-robot rating or
+proof of physical stability. To opt in, set
+`RAAS_WEBOTS_SIMULATION_MODE=1` in both the Fleet process and the Webots
+controller process before starting them. The ERP reports when that profile is
+enabled. Transport still requires fresh Supervisor geometry evidence of the
+object loaded on the selected carrier, and checks the object's mass and
+carrier-relative footprint. Missing or ambiguous geometry blocks dispatch.
+Leave the variable unset for physical robots; their simulation-only capability
+is rejected.
 
 Webots device names are enumerated from each running robot at startup and
 shown in the Fleet page. The current adapters use only model-verified motor
@@ -353,26 +371,55 @@ payload and stability profile.
 
 The fleet derives `load_verification` only from a fresh object pose, a fresh
 carrier pose/orientation, and support geometry reported by that robot adapter.
-The Webots YouBot adapter exposes the central plate's measured support patch
-from the Webots model for this geometric check, but does not claim a payload or
-stability rating. The current world sets YouBot `numberOfArms 0`; its adapter
-only advertises `NAVIGATION`, and its payload capacity and stability limits
-remain unknown. The WoodenBox in the checked-in world is on the table, not on
-the YouBot, and its footprint exceeds that conservative support patch.
-Therefore it must remain `LOAD_REQUIRED`; even a geometrically verified load
-cannot be dispatched until a `VERIFIED` payload/stability profile is configured.
-Neither robot identity nor visual fit alone is accepted as proof of carrying
-capability.
+The Webots YouBot adapter exposes the central plate support patch for this
+geometric check. By default, transport remains `UNVERIFIED` and cannot be
+dispatched. The checked-in world does not override the YouBot PROTO's
+`numberOfArms` field. The WoodenBox in the checked-in world is on the table, not
+on the YouBot, and its footprint exceeds that conservative support patch.
+It therefore remains `LOAD_REQUIRED` unless the object is physically staged,
+has fresh Supervisor-verifiable geometry, and fits an explicitly enabled
+transport profile. Neither robot identity nor visual fit alone is accepted as
+proof of carrying capability.
+
+## Pioneer3at controller support
+
+The checked-in Pioneer3at uses the shared `robot_controller` entry point and
+is selected by its discovered Webots model type. Its adapter drives the
+`back/front left/right wheel` motors and enables the `so` distance sensor
+added through `extensionSlot`. In the world, that sensor is rotated to face
+the Pioneer3at's local +X forward axis. Forward sonars (`so` and the standard
+front sensors when present) are used for a conservative stop at 0.45 m; the
+controller leaves the navigation order active and resumes when the sonar
+clears. Navigation uses the dedicated Supervisor's live node-pose snapshots
+and the project's X/Y floor convention.
+
+The dedicated object Supervisor discovers nested UR10e instances and their
+containing station DEF, while the standalone source arm declares
+`stationId=SOURCE_TABLE` in `customData`. Only that dedicated controller needs
+world-wide Supervisor access; ordinary robot controllers consume its current
+pose and node snapshots over MQTT. The destination table DEFs are distinct
+from N0-N5 navigation marker DEFs, so their exposed support surfaces remain
+available to geometric inventory analysis. This is discovery groundwork, not a completed
+table-arm/carrier handoff workflow: the current Pioneer world has no
+world-authored carrier support surface or payload limit, no handoff/approach
+poses, and no destination placement protocol. Pioneer3at consequently reports
+no verified transport capability. Do not dispatch it as a loaded carrier or
+claim task completion until those data and the coordinated loading/unloading
+and placement-verification states are implemented.
 
 The inventory accepts a fleet-produced `load_verification` record only when
 it has a fresh, timezone-aware timestamp (maximum age five seconds), matching
 object ID, carrier robot/manufacturer, `verified: true`,
-and `method: "SUPERVISOR_GEOMETRY"`. A carrier agent must separately publish a
-`transportCapability` profile containing `status: "VERIFIED"`,
-`canCarryPreloaded: true`, `stabilityVerified: true`, a positive
-`maxPayloadKg`, and measured `platformDimensions` (`x`, `y`). The object must
-also have measured mass and geometry dimensions. Missing/invalid evidence,
-unknown capacity, or an unsupported footprint prevents dispatch.
+and `method: "SUPERVISOR_GEOMETRY"`. A physical carrier must separately publish a `transportCapability` profile
+containing `status: "VERIFIED"`, `canCarryPreloaded: true`,
+`stabilityVerified: true`, a positive `maxPayloadKg`, and measured
+`platformDimensions` (`x`, `y`). A simulation-only profile is accepted only
+when `RAAS_WEBOTS_SIMULATION_MODE=1` is set in both Fleet and Webots; the
+YouBot's 0.5 kg payload limit and nominal stability assumption are test-only,
+not physical ratings. The object must also have measured mass and geometry
+dimensions. Missing/invalid evidence, unknown capacity, or an unsupported
+footprint prevents dispatch. Reservation repeats the compatibility and
+evidence checks immediately before dispatch.
 
 Load associations are persisted with task history. On ERP restart, an
 in-flight/uncertain task and its load move to `RECOVERY_REQUIRED` rather than

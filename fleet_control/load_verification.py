@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 import math
 
+from config import (
+    LOAD_CONTACT_TOLERANCE_METERS,
+    LOAD_FOOTPRINT_TOLERANCE_METERS,
+)
 
 LOAD_EVIDENCE_METHOD = "SUPERVISOR_GEOMETRY"
 MAX_EVIDENCE_AGE_SECONDS = 5.0
 MAX_POSE_AGE_SECONDS = 5.0
-CONTACT_TOLERANCE_METERS = 0.015
-FOOTPRINT_TOLERANCE_METERS = 0.005
 
 
 def _number(value):
@@ -136,12 +138,12 @@ def _object_supported(object_record, robot):
     bottom_z = min(point[2] for point in corners)
     bottom_points = [
         point for point in corners
-        if point[2] <= bottom_z + FOOTPRINT_TOLERANCE_METERS
+        if point[2] <= bottom_z + LOAD_FOOTPRINT_TOLERANCE_METERS
     ]
     if len(bottom_points) != 4:
         return False
     if any(
-        abs(point[2] - surface_center[2]) > CONTACT_TOLERANCE_METERS
+        abs(point[2] - surface_center[2]) > LOAD_CONTACT_TOLERANCE_METERS
         for point in bottom_points
     ):
         return False
@@ -149,9 +151,9 @@ def _object_supported(object_record, robot):
     half_y = surface_size[1] / 2.0
     return all(
         abs(point[0] - surface_center[0])
-        <= half_x + FOOTPRINT_TOLERANCE_METERS
+        <= half_x + LOAD_FOOTPRINT_TOLERANCE_METERS
         and abs(point[1] - surface_center[1])
-        <= half_y + FOOTPRINT_TOLERANCE_METERS
+        <= half_y + LOAD_FOOTPRINT_TOLERANCE_METERS
         for point in bottom_points
     )
 
@@ -197,6 +199,21 @@ def annotate_load_verification(snapshot, robots):
             if _object_supported(object_record, robot)
         ]
         if len(matches) != 1:
+            if len(matches) > 1:
+                reason = "Load geometry matches multiple carriers; association is ambiguous"
+            elif not fresh_robots:
+                reason = "No fresh, operational carrier pose is available for load verification"
+            elif not _has_object_bounds(object_record):
+                reason = (
+                    "Object geometry bounds are unavailable; Supervisor "
+                    "cannot verify support"
+                )
+            else:
+                reason = (
+                    "Object is not seated within a single carrier support surface "
+                    "with the required contact and footprint fit"
+                )
+            object_record["load_verification_reason"] = reason
             continue
         carrier = matches[0]
         object_record["load_verification"] = {
@@ -208,4 +225,15 @@ def annotate_load_verification(snapshot, robots):
             "carrier_manufacturer": carrier["manufacturer"],
             "observed_at": observed_at,
         }
+        object_record.pop("load_verification_reason", None)
     return snapshot
+
+
+def _has_object_bounds(object_record):
+    geometry = object_record.get("geometry")
+    bounds = geometry.get("bounds") if isinstance(geometry, dict) else None
+    return (
+        isinstance(bounds, dict)
+        and isinstance(bounds.get("min"), dict)
+        and isinstance(bounds.get("max"), dict)
+    )

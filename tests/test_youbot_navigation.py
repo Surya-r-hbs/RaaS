@@ -3,6 +3,7 @@ import math
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER_DIR = PROJECT_ROOT / "webots/controllers/robot_controller"
@@ -48,6 +49,11 @@ class Robot:
             Motor(f"wheel{index}")
             for index in range(1, 5)
         ]
+
+    def getProtoField(self, name):
+        if name == "numberOfArms":
+            return type("IntField", (), {"getSFInt32": lambda _self: 0})()
+        return None
 
     def getSelf(self):
         return self
@@ -126,6 +132,24 @@ class YoubotNavigationTests(unittest.TestCase):
 
         self.assertTrue(result["reached"])
         self.assert_velocities(robot, [0.0, 0.0, 0.0, 0.0])
+
+    def test_transport_is_unverified_by_default_and_simulation_only_when_enabled(self):
+        import adapters.youbot_adapter as youbot_module
+
+        adapter, _robot = self.create_adapter({"x": 2.0, "y": 0.0})
+        self.assertEqual(adapter.transport_capability["status"], "UNVERIFIED")
+
+        with patch.object(
+            youbot_module,
+            "WEBOTS_SIMULATION_MODE",
+            True,
+        ):
+            capability = adapter.transport_capability
+
+        self.assertEqual(capability["status"], "SIMULATION_ONLY")
+        self.assertEqual(capability["mode"], "SIMULATION_ONLY")
+        self.assertEqual(capability["maxPayloadKg"], 0.5)
+        self.assertIn("not a physical rating", capability["reason"])
 
 
 if __name__ == "__main__":

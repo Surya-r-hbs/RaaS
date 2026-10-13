@@ -28,20 +28,32 @@ async function refreshTransportOptions() {
       return;
     }
     transportOptions = payload;
-    const hasVerifiedCarrier = (payload.carriers || []).some(robot => {
+    const hasEligibleCarrier = (payload.carriers || []).some(robot => {
       const capability = robot.transportCapability;
       const hasPositiveLimit = value => (
         typeof value === "number" && Number.isFinite(value) && value > 0
       );
-      return capability?.status === "VERIFIED"
+      const profileAccepted = capability?.status === "VERIFIED"
         && capability.canCarryPreloaded === true
-        && capability.stabilityVerified === true
+        && capability.stabilityVerified === true;
+      const simulationProfileAccepted = payload.simulationTransportEnabled === true
+        && robot.runtimeMode === "WEBOTS_SIMULATION"
+        && robot.simulationModeEnabled === true
+        && capability?.status === "SIMULATION_ONLY"
+        && capability.mode === "SIMULATION_ONLY"
+        && capability.canCarryPreloaded === true
+        && capability.stabilityMode === "SIMULATION_ASSUMED";
+      return (profileAccepted || simulationProfileAccepted)
         && hasPositiveLimit(capability.maxPayloadKg)
         && hasPositiveLimit(capability.platformDimensions?.x)
         && hasPositiveLimit(capability.platformDimensions?.y);
     });
-    status.textContent = hasVerifiedCarrier
-      ? "Live Webots inventory and map nodes are available. Objects must already "
+    status.textContent = hasEligibleCarrier
+      ? payload.simulationTransportEnabled
+        ? "Simulation-only Webots transport profile enabled. Objects must already "
+          + "be geometrically verified on a carrier; no real-world capability "
+          + "is implied."
+        : "Live Webots inventory and map nodes are available. Objects must already "
         + "be geometrically verified on a carrier; object-specific compatibility "
         + "is checked by the backend."
       : "Live Webots inventory and map nodes are available, but no carrier has "
@@ -81,14 +93,19 @@ async function refreshTransportOptions() {
       + (payload.carriers || []).map(robot => {
         const value = `${encodeURIComponent(robot.manufacturer)}::${encodeURIComponent(robot.robotId)}`;
         const capability = robot.transportCapability;
-        const capabilityLabel = capability?.status === "VERIFIED"
+        const capabilityLabel = capability?.status === "SIMULATION_ONLY"
+          ? `SIMULATION ONLY — ${capability.stabilityAssumption || "assumed limits"}`
+          : capability?.status === "VERIFIED"
           ? "transport capability verified"
           : `transport capability unverified — ${
             capability?.reason || "payload and stability limits are unknown"
           }`;
+        const availability = robot.available
+          ? "available"
+          : robot.availabilityReason || robot.status || "unavailable";
         return `<option value="${transportEscape(value)}">
           ${transportEscape(robot.robotId)} — ${transportEscape(robot.robotType || "Unknown")}
-          (${transportEscape(capabilityLabel)})
+          (${transportEscape(availability)}; ${transportEscape(capabilityLabel)})
         </option>`;
       }).join("");
     if ((payload.carriers || []).some(robot => (

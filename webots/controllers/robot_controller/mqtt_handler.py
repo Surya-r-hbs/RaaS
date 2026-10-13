@@ -25,6 +25,7 @@ class MQTTHandler:
         robot_type="Unknown",
         world_robots=None,
         robot_info=None,
+        world_snapshot_callback=None,
     ):
 
         self.command_callback = (
@@ -35,6 +36,7 @@ class MQTTHandler:
         self.robot_type = robot_type or "Unknown"
         self.world_robots = world_robots or []
         self.robot_info = robot_info or {}
+        self.world_snapshot_callback = world_snapshot_callback
         self.command_topic = (
             f"robot/{self.manufacturer}/{self.robot_id}/command"
         )
@@ -96,6 +98,7 @@ class MQTTHandler:
         client.subscribe(
             self.command_topic
         )
+        client.subscribe(self.discovery_topic, qos=0)
 
         print(
             f"Subscribed: "
@@ -129,6 +132,15 @@ class MQTTHandler:
             print(error)
             print("--------------------")
 
+            return
+
+        if message.topic == self.discovery_topic:
+            if payload.get("discoveryType") != "WORLD_SNAPSHOT":
+                return
+            if self.world_snapshot_callback is None:
+                print("Received Webots world snapshot without a handler")
+                return
+            self.world_snapshot_callback(payload)
             return
 
         if message.topic != self.command_topic:

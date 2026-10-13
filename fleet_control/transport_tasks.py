@@ -9,6 +9,8 @@ import tempfile
 import threading
 import uuid
 
+from config import SIMULATION_TRANSPORT_ENABLED
+
 
 ACTIVE_TASK_STATES = {
     "DISPATCHING",
@@ -90,14 +92,42 @@ class LoadManager:
         capability = robot.get("transportCapability")
         if not isinstance(capability, dict):
             return "Carrier transport capability is unverified"
-        if (
-            capability.get("status") != "VERIFIED"
-            or capability.get("canCarryPreloaded") is not True
-            or capability.get("stabilityVerified") is not True
-        ):
+        capability_mode = capability.get("mode")
+        verified_profile = (
+            capability.get("status") == "VERIFIED"
+            and capability.get("canCarryPreloaded") is True
+            and capability.get("stabilityVerified") is True
+        )
+        simulation_profile = (
+            capability.get("status") == "SIMULATION_ONLY"
+            and capability_mode == "SIMULATION_ONLY"
+            and SIMULATION_TRANSPORT_ENABLED
+            and robot.get("runtimeMode") == "WEBOTS_SIMULATION"
+            and robot.get("simulationModeEnabled") is True
+            and capability.get("canCarryPreloaded") is True
+            and capability.get("stabilityMode") == "SIMULATION_ASSUMED"
+            and isinstance(capability.get("stabilityAssumption"), str)
+            and bool(capability["stabilityAssumption"].strip())
+        )
+        if not (verified_profile or simulation_profile):
             reason = capability.get("reason")
             if isinstance(reason, str) and reason.strip():
                 return f"Carrier transport capability is unverified: {reason.strip()}"
+            if capability.get("status") == "SIMULATION_ONLY":
+                if not SIMULATION_TRANSPORT_ENABLED:
+                    return (
+                        "Simulation-only transport profile is disabled; set "
+                        "RAAS_WEBOTS_SIMULATION_MODE=1 in both Webots and Fleet"
+                    )
+                if (
+                    robot.get("runtimeMode") != "WEBOTS_SIMULATION"
+                    or robot.get("simulationModeEnabled") is not True
+                ):
+                    return (
+                        "Simulation-only transport is restricted to a Webots "
+                        "robot with simulation mode explicitly enabled"
+                    )
+                return "Simulation-only carrier capability profile is incomplete"
             return (
                 "Carrier carrying or stability capability is unverified "
                 "or unsupported"
@@ -120,22 +150,65 @@ class LoadManager:
             or not isinstance(bounds.get("max"), dict)
             or not isinstance(rotation, list)
             or len(rotation) != 9
+            or any(_number(value) is None for value in rotation)
         ):
-            return "Payload, platform dimensions, or object orientation are unknown"
+            return (
+                "Carrier payload, platform dimensions, object geometry, or orientation "
+                "are unknown"
+            )
+        rotation = [_number(value) for value in rotation]
         platform_x = _number(platform.get("x"))
         platform_y = _number(platform.get("y"))
         if platform_x is None or platform_y is None:
-            return "Verified carrier platform dimensions are unknown"
+            return "Carrier platform dimensions are unknown"
+        minimum = {
+            axis: _number(bounds["min"].get(axis))
+            for axis in ("x", "y", "z")
+        }
+        maximum = {
+            axis: _number(bounds["max"].get(axis))
+            for axis in ("x", "y", "z")
+        }
+        if any(
+            minimum[axis] is None
+            or maximum[axis] is None
+            or minimum[axis] >= maximum[axis]
+            for axis in ("x", "y", "z")
+        ):
+            return "Object geometry bounds are invalid"
+        robot_rotation = robot.get("orientation")
+        if (
+            not isinstance(robot_rotation, (list, tuple))
+            or len(robot_rotation) != 9
+            or any(_number(value) is None for value in robot_rotation)
+        ):
+            return (
+                "Carrier orientation is unavailable for object footprint "
+                "validation"
+            )
+        relative_rotation = [
+            sum(
+                _number(robot_rotation[k * 3 + row])
+                * _number(rotation[k * 3 + column])
+                for k in range(3)
+            )
+            for row in range(3)
+            for column in range(3)
+        ]
         points = [
             (x, y, z)
-            for x in (bounds["min"]["x"], bounds["max"]["x"])
-            for y in (bounds["min"]["y"], bounds["max"]["y"])
-            for z in (bounds["min"]["z"], bounds["max"]["z"])
+            for x in (minimum["x"], maximum["x"])
+            for y in (minimum["y"], maximum["y"])
+            for z in (minimum["z"], maximum["z"])
         ]
         transformed = [
             (
-                rotation[0] * x + rotation[1] * y + rotation[2] * z,
-                rotation[3] * x + rotation[4] * y + rotation[5] * z,
+                relative_rotation[0] * x
+                + relative_rotation[1] * y
+                + relative_rotation[2] * z,
+                relative_rotation[3] * x
+                + relative_rotation[4] * y
+                + relative_rotation[5] * z,
             )
             for x, y, z in points
         ]
@@ -145,15 +218,17 @@ class LoadManager:
         object_y = max(point[1] for point in transformed) - min(
             point[1] for point in transformed
         )
+        if object_mass <= 0:
+            return "Object mass must be positive for transport"
         if max_payload <= 0 or platform_x <= 0 or platform_y <= 0:
-            return "Verified carrier payload/platform limits are invalid"
+            return "Configured carrier payload/platform limits must be positive"
         if object_mass > max_payload:
             return (
-                f"Object mass {object_mass:g} kg exceeds the verified "
-                f"{max_payload:g} kg carrier limit"
+                f"Object mass {object_mass:g} kg exceeds the configured "
+                f"{max_payload:g} kg carrier payload limit"
             )
         if object_x > platform_x or object_y > platform_y:
-            return "Object footprint exceeds the verified carrier platform"
+            return "Object footprint exceeds the carrier support platform"
         return None
 
     def observe_verified(self, object_record, robot, evidence):
@@ -639,8 +714,9 @@ class TransportTaskManager:
             self._transition(
                 task,
                 "LOAD_REQUIRED",
-                "The object has no current Webots-verified load association. "
-                "Load it physically and provide Supervisor geometry verification.",
+                object_record.get("load_verification_reason")
+                or "The object has no current Webots-verified load association. "
+                "Physically load it and refresh the Webots inventory.",
             )
         elif carrier is None:
             self._transition(

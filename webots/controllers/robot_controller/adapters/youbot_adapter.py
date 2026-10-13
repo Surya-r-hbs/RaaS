@@ -3,7 +3,12 @@
 import math
 
 from adapters.base_robot import BaseRobot
-from config import POSITION_TOLERANCE
+from config import (
+    POSITION_TOLERANCE,
+    WEBOTS_SIMULATION_MODE,
+    YOUBOT_SIMULATION_TRANSPORT_PROFILE,
+    YOUBOT_SUPPORT_SURFACE,
+)
 
 
 class _YoubotNavigation:
@@ -17,7 +22,10 @@ class _YoubotNavigation:
         self.node_manager = node_manager
 
     def get_robot_position(self):
-        values = self.robot.getSelf().getPosition()
+        try:
+            values = self.robot.getSelf().getPosition()
+        except (AttributeError, RuntimeError):
+            return self.node_manager.get_robot_position()
         return {
             "x": float(values[0]),
             "y": float(values[1]),
@@ -25,7 +33,10 @@ class _YoubotNavigation:
         }
 
     def get_robot_heading(self):
-        orientation = self.robot.getSelf().getOrientation()
+        try:
+            orientation = self.robot.getSelf().getOrientation()
+        except (AttributeError, RuntimeError):
+            orientation = self.node_manager.get_robot_orientation()
         if not orientation or len(orientation) < 9:
             return 0.0
         return math.atan2(orientation[3], orientation[0])
@@ -77,11 +88,7 @@ class _YoubotNavigation:
 
 class YoubotAdapter(BaseRobot):
     WHEEL_MOTOR_NAMES = ("wheel1", "wheel2", "wheel3", "wheel4")
-    # Conservative first plate collision box from the R2025a Youbot.proto.
-    SUPPORT_SURFACE = {
-        "center": {"x": -0.147, "y": 0.0, "z": 0.0485},
-        "dimensions": {"x": 0.25, "y": 0.17, "z": 0.007},
-    }
+    SUPPORT_SURFACE = YOUBOT_SUPPORT_SURFACE
 
     def __init__(self, robot, node_manager, robot_type):
         super().__init__(robot, node_manager, robot_type)
@@ -104,17 +111,38 @@ class YoubotAdapter(BaseRobot):
     def transport_capability(self):
         capability = {
             "status": "UNVERIFIED",
+            "mode": "UNVERIFIED",
             "reason": (
                 "The Webots YouBot model exposes support geometry, but this "
-                "world has no verified payload or stability rating."
+                "world requires explicit simulation-only transport configuration."
             ),
         }
         get_self = getattr(self.robot, "getSelf", None)
         node = get_self() if callable(get_self) else None
         get_proto_field = getattr(node, "getProtoField", None)
         field = get_proto_field("numberOfArms") if callable(get_proto_field) else None
-        if field is not None and field.getSFInt32() < 2:
-            capability["supportSurface"] = self.SUPPORT_SURFACE
+        if field is None or field.getSFInt32() > 1:
+            capability["reason"] = (
+                "The configured YouBot model does not expose an unobstructed "
+                "single-arm support surface."
+            )
+            return capability
+
+        capability["supportSurface"] = self.SUPPORT_SURFACE
+        capability["platformDimensions"] = self.SUPPORT_SURFACE["dimensions"]
+        if WEBOTS_SIMULATION_MODE:
+            capability.update(YOUBOT_SIMULATION_TRANSPORT_PROFILE)
+            capability.update(
+                {
+                    "status": "SIMULATION_ONLY",
+                    "mode": "SIMULATION_ONLY",
+                    "canCarryPreloaded": True,
+                    "reason": (
+                        "Enabled by the configured Webots-only YouBot "
+                        "simulation profile; not a physical rating."
+                    ),
+                }
+            )
         return capability
 
     def get_position(self):

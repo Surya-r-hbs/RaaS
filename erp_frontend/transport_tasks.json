@@ -111,6 +111,118 @@
           "message": "The object has no current Webots-verified load association. Load it physically and provide Supervisor geometry verification."
         }
       ]
+    },
+    {
+      "taskId": "transport-ae1344cf3bc0415a8b1cb3a8edd1237f",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:34293",
+      "objectName": "wooden box",
+      "destinationNode": "N3",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T08:52:52.465Z",
+      "updatedAt": "2026-10-12T08:52:52.466Z",
+      "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit",
+      "carrierRobotId": "UR10e",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T08:52:52.466Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T08:52:52.466Z",
+          "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit"
+        }
+      ]
+    },
+    {
+      "taskId": "transport-db9b1a31df8647cdbfbb6c408b4b376b",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:34293",
+      "objectName": "wooden box",
+      "destinationNode": "N3",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T08:52:59.090Z",
+      "updatedAt": "2026-10-12T08:52:59.090Z",
+      "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit",
+      "carrierRobotId": "TIAGo",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T08:52:59.090Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T08:52:59.090Z",
+          "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit"
+        }
+      ]
+    },
+    {
+      "taskId": "transport-3ff416542ba34c23b8d660e5a6768735",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:32705",
+      "objectName": "plastic crate",
+      "destinationNode": "N4",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T09:08:47.139Z",
+      "updatedAt": "2026-10-12T09:08:47.139Z",
+      "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit",
+      "carrierRobotId": "youBot",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T09:08:47.139Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T09:08:47.139Z",
+          "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit"
+        }
+      ]
+    },
+    {
+      "taskId": "transport-95748e4fc80f401c9621715569d26702",
+      "taskType": "TRANSPORT_OBJECT",
+      "objectId": "webots-node:32705",
+      "objectName": "plastic crate",
+      "destinationNode": "N4",
+      "handlingMode": "PRELOADED",
+      "status": "LOAD_REQUIRED",
+      "createdAt": "2026-10-12T09:11:15.069Z",
+      "updatedAt": "2026-10-12T09:11:15.070Z",
+      "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit",
+      "carrierRobotId": "youBot",
+      "manufacturer": "DemoRobot",
+      "orderId": null,
+      "loadState": "NOT_LOADED",
+      "history": [
+        {
+          "status": "VALIDATING",
+          "timestamp": "2026-10-12T09:11:15.070Z",
+          "message": null
+        },
+        {
+          "status": "LOAD_REQUIRED",
+          "timestamp": "2026-10-12T09:11:15.070Z",
+          "message": "Object is not seated within a single carrier support surface with the required contact and footprint fit"
+        }
+      ]
     }
   ],
   "loads": {}

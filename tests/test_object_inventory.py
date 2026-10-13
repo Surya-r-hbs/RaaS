@@ -17,7 +17,7 @@ for path in (str(FLEET_DIR), str(ERP_DIR), str(SUPERVISOR_DIR), str(ROBOT_CONTRO
 
 from object_discovery import discover_objects
 from object_registry import ObjectRegistry
-from robot_discovery import discover_world_robots
+from world_discovery import discover_world_snapshot
 
 erp = importlib.import_module("app")
 fleet = importlib.import_module("fleet_controller")
@@ -107,6 +107,17 @@ class Children:
         return self.nodes[index]
 
 
+class Station(SceneObject):
+    def __init__(self, *args, children=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.children = list(children)
+
+    def getField(self, name):
+        if name == "children":
+            return Children(self.children)
+        return None
+
+
 class Root:
     def __init__(self, nodes):
         self.children = Children(nodes)
@@ -192,6 +203,31 @@ class ObjectDiscoveryTests(unittest.TestCase):
         record = discover_objects(supervisor)["objects"][0]
 
         self.assertEqual(record["object_id"], "def:BoxA")
+
+    def test_navigation_station_marker_does_not_hide_nested_table_surface(self):
+        table = SceneObject(
+            11,
+            "Table",
+            "destination table",
+            [1.86, 2.0, -0.07],
+            [1.0, 1.8, 0.74],
+            definition="N4_TABLE",
+        )
+        station = Station(
+            10,
+            "Solid",
+            "N4",
+            [1.86, 2.0, -0.07],
+            definition="N4",
+            children=[table],
+        )
+
+        records = discover_objects(Supervisor([station]))["objects"]
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["object_id"], "def:N4_TABLE")
+        self.assertEqual(records[0]["semantic_category"], "support_surface")
+        self.assertEqual(records[0]["parent_id"], "def:N4")
 
     def test_mass_from_world_proto_is_preserved(self):
         record = discover_objects(Supervisor(world_objects()))["objects"][-1]
@@ -374,6 +410,16 @@ class ObjectDiscoveryTests(unittest.TestCase):
             def getPosition(self):
                 return [0.0, 0.0, 0.0]
 
+            def getOrientation(self):
+                return [
+                    1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0,
+                ]
+
+            def getProtoTypeName(self):
+                return self.type_name
+
         supervisor_robot = RobotNode(
             1,
             "object-inventory-supervisor",
@@ -392,9 +438,12 @@ class ObjectDiscoveryTests(unittest.TestCase):
                 return supervisor_robot
 
         world = RobotSupervisor([supervisor_robot, warehouse_robot])
-        discovered = discover_world_robots(world, "DemoRobot")
+        discovered = discover_world_snapshot(world)
 
-        self.assertEqual([record["robotId"] for record, _ in discovered], ["Mir100"])
+        self.assertEqual(
+            [record["robotId"] for record in discovered["worldRobots"]],
+            ["Mir100"],
+        )
 
 
 class ObjectRelationshipTests(unittest.TestCase):

@@ -23,6 +23,7 @@ class RobotRegistry:
                 "robotId": key[1],
                 "manufacturer": key[0],
                 "robotType": "Unknown",
+                "stationId": None,
                 "status": "NO_AGENT",
                 "available": False,
                 "availabilityReason": "No live robot agent",
@@ -42,6 +43,8 @@ class RobotRegistry:
                 "capabilities": [],
                 "availableDevices": [],
                 "transportCapability": None,
+                "runtimeMode": None,
+                "simulationModeEnabled": False,
                 "lastUpdate": None,
                 "_last_seen": 0.0,
                 "_source": "webots",
@@ -66,6 +69,8 @@ class RobotRegistry:
                 entry["present"] = True
                 if record.get("robotType"):
                     entry["robotType"] = record["robotType"]
+                if record.get("stationId"):
+                    entry["stationId"] = record["stationId"]
                 if (
                     isinstance(record.get("position"), dict)
                     and (
@@ -74,6 +79,14 @@ class RobotRegistry:
                     )
                 ):
                     entry["position"] = record["position"]
+                if (
+                    isinstance(record.get("orientation"), list)
+                    and (
+                        entry["_source"] != "agent"
+                        or entry["orientation"] is None
+                    )
+                ):
+                    entry["orientation"] = record["orientation"]
 
                 if entry["_source"] == "webots":
                     entry["agentOnline"] = False
@@ -188,6 +201,7 @@ class RobotRegistry:
             entry["lastUpdate"] = self._timestamp()
             for field in (
                 "robotType",
+                "stationId",
                 "currentNode",
                 "position",
                 "orientation",
@@ -196,6 +210,8 @@ class RobotRegistry:
                 "availableDevices",
                 "agentSessionId",
                 "transportCapability",
+                "runtimeMode",
+                "simulationModeEnabled",
             ):
                 if field in payload:
                     entry[field] = payload[field]
@@ -271,6 +287,8 @@ class RobotRegistry:
                 "capabilities",
                 "availableDevices",
                 "transportCapability",
+                "runtimeMode",
+                "simulationModeEnabled",
             ):
                 if field in payload:
                     entry[field] = payload[field]

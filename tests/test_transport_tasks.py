@@ -72,6 +72,8 @@ def robot_record(
         "available": available,
         "currentOrder": None if available else "other-order",
         "currentNode": current_node,
+        "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         "capabilities": ["NAVIGATION"],
     }
     if capability:
@@ -179,6 +181,119 @@ class TransportTaskManagerTests(unittest.TestCase):
 
         self.assertEqual(task["status"], "FAILED")
         self.assertIn("exceeds", task["message"])
+
+    def simulation_setup(self, mass=0.4):
+        loaded = object_record()
+        loaded["mass_kg"] = mass
+        loaded["dimensions"] = {"x": 0.2, "y": 0.1, "z": 0.1}
+        loaded["geometry"]["bounds"] = {
+            "min": {"x": -0.1, "y": -0.05, "z": -0.05},
+            "max": {"x": 0.1, "y": 0.05, "z": 0.05},
+        }
+        carrier = robot_record()
+        carrier["runtimeMode"] = "WEBOTS_SIMULATION"
+        carrier["simulationModeEnabled"] = True
+        carrier["orientation"] = [
+            0.0, -1.0, 0.0,
+            1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0,
+        ]
+        carrier["transportCapability"] = {
+            "status": "SIMULATION_ONLY",
+            "mode": "SIMULATION_ONLY",
+            "canCarryPreloaded": True,
+            "stabilityMode": "SIMULATION_ASSUMED",
+            "stabilityAssumption": "Webots-only nominal simulation assumption",
+            "maxPayloadKg": 0.5,
+            "platformDimensions": {"x": 0.12, "y": 0.22},
+        }
+        return loaded, carrier
+
+    def test_simulation_profile_allows_compatible_object_only_when_enabled(self):
+        loaded, carrier = self.simulation_setup()
+        self.manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        self.manager.observe_inventory({"objects": [loaded]}, [carrier])
+
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = self.manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "READY_FOR_DISPATCH")
+
+        self.manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        self.manager.observe_inventory({"objects": [loaded]}, [carrier])
+        task = self.manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "FAILED")
+        self.assertIn("simulation-only", task["message"].lower())
+
+    def test_simulation_profile_rejects_real_robot_and_overweight_object(self):
+        loaded, carrier = self.simulation_setup(mass=0.6)
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        manager.observe_inventory({"objects": [loaded]}, [carrier])
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "FAILED")
+        self.assertIn("exceeds", task["message"])
+
+        loaded, carrier = self.simulation_setup()
+        carrier["runtimeMode"] = "PHYSICAL_ROBOT"
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        manager.observe_inventory({"objects": [loaded]}, [carrier])
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "FAILED")
+
+    def test_simulation_profile_rejects_object_outside_rotated_footprint(self):
+        loaded, carrier = self.simulation_setup()
+        carrier["transportCapability"]["platformDimensions"] = {
+            "x": 0.09,
+            "y": 0.22,
+        }
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        manager.observe_inventory({"objects": [loaded]}, [carrier])
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "FAILED")
+        self.assertIn("footprint", task["message"])
+
+    def test_simulation_profile_rejects_nonpositive_mass_and_limits(self):
+        for mass in (0.0, -0.1):
+            loaded, carrier = self.simulation_setup(mass=mass)
+            manager = TransportTaskManager(MAP_NODE_POSITIONS)
+            manager.observe_inventory({"objects": [loaded]}, [carrier])
+            with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+                task = manager.create_task(loaded, "N5", [carrier])
+            self.assertEqual(task["status"], "FAILED")
+            self.assertIn("positive", task["message"])
+
+        loaded, carrier = self.simulation_setup()
+        carrier["transportCapability"]["maxPayloadKg"] = 0
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        manager.observe_inventory({"objects": [loaded]}, [carrier])
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = manager.create_task(loaded, "N5", [carrier])
+        self.assertEqual(task["status"], "FAILED")
+        self.assertIn("must be positive", task["message"])
+
+    def test_reservation_rechecks_simulation_profile(self):
+        loaded, carrier = self.simulation_setup()
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        manager.observe_inventory({"objects": [loaded]}, [carrier])
+        with patch("transport_tasks.SIMULATION_TRANSPORT_ENABLED", True):
+            task = manager.create_task(loaded, "N5", [carrier])
+            self.assertEqual(task["status"], "READY_FOR_DISPATCH")
+
+            carrier["transportCapability"]["status"] = "UNVERIFIED"
+            self.assertFalse(
+                manager.reserve(task["taskId"], loaded, carrier)
+            )
+
+    def test_load_required_task_shows_verification_diagnostic(self):
+        unloaded = object_record(load_state="UNLOADED")
+        diagnostic = "Supervisor could not match an object to its support surface"
+        unloaded["load_verification_reason"] = diagnostic
+        manager = TransportTaskManager(MAP_NODE_POSITIONS)
+        task = manager.create_task(unloaded, "N5", [self.robot])
+        self.assertEqual(task["status"], "LOAD_REQUIRED")
+        self.assertEqual(task["message"], diagnostic)
 
     def test_two_tasks_cannot_reserve_the_same_object(self):
         first = self.create_ready_task()

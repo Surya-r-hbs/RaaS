@@ -50,6 +50,7 @@ from config import (
     VDA_VERSION,
     MAP_CONNECTIONS,
     MAP_NODE_POSITIONS,
+    SIMULATION_TRANSPORT_ENABLED,
 )
 from transport_tasks import TransportConflictError, TransportTaskManager
 
@@ -1006,6 +1007,7 @@ def transport_options():
                 for node_id, position in MAP_NODE_POSITIONS.items()
             ],
             "carriers": carrier_list,
+            "simulationTransportEnabled": SIMULATION_TRANSPORT_ENABLED,
             "handlingModes": ["PRELOADED"],
         }
     )

@@ -2,8 +2,27 @@
 # ROBOT CONFIGURATION
 # --------------------
 
+import os
+
 MANUFACTURER = "DemoRobot"
 ROBOT_ID = "robot001"
+WEBOTS_SIMULATION_MODE = (
+    os.environ.get("RAAS_WEBOTS_SIMULATION_MODE", "").strip() == "1"
+)
+
+# Webots-only assumptions; these are not manufacturer specifications.
+YOUBOT_SIMULATION_TRANSPORT_PROFILE = {
+    "maxPayloadKg": 0.5,
+    "stabilityMode": "SIMULATION_ASSUMED",
+    "stabilityAssumption": (
+        "One centered object on the modeled support patch during nominal "
+        "Webots navigation; no physical-robot rating is implied."
+    ),
+}
+YOUBOT_SUPPORT_SURFACE = {
+    "center": {"x": -0.147, "y": 0.0, "z": 0.0485},
+    "dimensions": {"x": 0.25, "y": 0.17, "z": 0.007},
+}
 
 
 def resolve_robot_identity(robot=None):

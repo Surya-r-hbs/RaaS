@@ -440,7 +440,8 @@ def _walk_scene(nodes):
                 )
             except (AttributeError, TypeError, ValueError):
                 stable_id = None
-            yield node, parent_id
+            if not NAVIGATION_DEF.fullmatch(definition or ""):
+                yield node, parent_id
         next_parent = stable_id or parent_id
         stack.extend(
             (child, next_parent) for child in reversed(_children(node))

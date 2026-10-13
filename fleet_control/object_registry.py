@@ -172,6 +172,7 @@ def _normalize_object(record, snapshot_time):
         ),
         "parent_id": record.get("parent_id"),
         "simulation_session_id": record.get("simulation_session_id"),
+        "load_verification_reason": record.get("load_verification_reason"),
         "relationships": [],
         "last_seen": record.get("last_seen") or snapshot_time,
         "status": "PRESENT",

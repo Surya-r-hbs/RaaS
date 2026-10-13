@@ -984,7 +984,12 @@ def on_message(
         return
 
     if message.topic == "robot/discovery":
-        robot_registry.discover_world(payload.get("worldRobots", []))
+        if payload.get("discoveryType") == "WORLD_SNAPSHOT":
+            robot_registry.discover_world(payload.get("worldRobots", []))
+            publish_robot_registry()
+            return
+        if payload.get("worldRobots"):
+            robot_registry.discover_world(payload["worldRobots"])
         if not robot_registry.register_agent(payload):
             log("Ignoring robot discovery without a robot ID")
             return

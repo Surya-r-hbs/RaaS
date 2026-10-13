@@ -3,7 +3,6 @@
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/gctronic/e-puck/protos/E-puck.proto"
-EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Marble.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/pal_robotics/tiago/protos/Tiago.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/tables/protos/Table.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/kuka/youbot/protos/Youbot.proto"
@@ -16,193 +15,150 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/devices/robotiq/protos/RobotiqEPickGripper.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/drinks/protos/BeerBottle.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/adept/pioneer3/protos/Pioneer3at.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/adept/pioneer3/protos/Pioneer3DistanceSensor.proto"
 
 WorldInfo {
 }
 Viewpoint {
-  orientation -0.027467749618758582 -0.9903165144573521 0.1360835181935064 5.881096397590771
-  position -14.115392628857602 -1.467593710318067 6.2561154104496755
+  orientation 0.05124709374355003 -0.9902141806999559 -0.12980605426387015 5.524395221402396
+  position -21.59875803960222 -2.9973421145778025 18.545584889166275
 }
 TexturedBackground {
 }
 TexturedBackgroundLight {
 }
 Mir100 {
-  hidden position_0_0 -7.881533647946526e-09
-  hidden position_0_1 7.877215631362721e-09
-  hidden position_0_2 1.6653650966360577e-05
-  hidden position_0_3 1.6620732131480712e-05
-  hidden position_0_4 9.834955477961598e-06
-  hidden position_0_5 9.800665046649886e-06
-  hidden rotation_11 -1 -6.45339365137395e-09 -6.453417356055979e-09 1.5708
-  hidden rotation_13 -1 6.448596758748305e-09 6.448620445810332e-09 1.5708
-  hidden rotation_15 0 0 1 2.8634929922278576e-05
-  hidden position_15_0 -2.250219298538525e-05
-  hidden rotation_16 -0.9999999998734134 -1.1251055164233986e-05 -1.1251096491743135e-05 1.570800000126586
-  hidden rotation_18 0 0 1 2.8570123467178964e-05
-  hidden position_18_0 -2.051736469166343e-05
-  hidden rotation_19 -0.99999999989476 -1.0258644662936834e-05 -1.0258682345111968e-05 1.5708000001052393
-  hidden rotation_21 0 0 1 1.72526105056797e-05
-  hidden position_21_0 -1.5387546728362622e-05
-  hidden rotation_22 -0.999999999940806 -7.693745103122018e-06 -7.693773363877697e-06 1.570800000059194
-  hidden rotation_24 0 0 1 1.7185374250231004e-05
-  hidden position_24_0 -1.3402719409860708e-05
-  hidden rotation_25 -0.9999999999550919 -6.7013350893062696e-06 -6.701359704729725e-06 1.5708000000449078
-  translation 1.2000000000004971 -7.809999313312659 -0.010423761835388567
-  rotation -0.017149412196311397 0.999852891572312 0.00030475532376178 0.0062397127265530145
+  name "MiR100"
+  translation 1.1999991668509933 -7.809998653908682 -0.010423753364959043
+  rotation -0.017179513381099604 0.9998523320753591 0.0004223309777070732 0.006239708748246931
   controller "robot_controller"
-  supervisor TRUE
 }
 Tiago {
-  hidden position_0_0 -1.6442554819917632e-06
-  hidden position_0_1 6.561869520352809e-07
-  hidden position_0_2 -0.0076215945187190215
-  hidden position_0_3 -0.005217432481003037
-  hidden position_0_4 -0.0053847332668155445
-  hidden position_0_5 -0.0029784938589418886
-  hidden position_1_0 -0.000255412571596197
-  hidden translation_2 0 0 0.5994891703748099
-  hidden position_2_0 7.192748431081081e-07
-  hidden position_3_0 0.07092635711808044
-  hidden translation_4 0.025099999999728836 0.19399999263571183 -0.171
-  hidden rotation_4 0 0 1 0.009926357118059915
-  hidden position_4_0 -3.3714944745355524e-05
-  hidden rotation_5 0.9999999997158266 1.6857410448644336e-05 -1.6857472369484143e-05 1.570800000284173
-  hidden position_5_0 -4.344077098626952e-05
-  hidden rotation_6 -0.5774085771170611 -0.5773336525184966 0.5773085732442422 2.094434916744679
-  hidden position_6_0 1.3116765943554129e-05
-  hidden rotation_7 -0.5773553178280536 -0.5773477448645633 -0.5773477448431494 2.094392427048206
-  hidden position_7_0 -1.03872477320609e-05
-  hidden rotation_8 5.193604788726406e-06 -0.9999999999730265 -5.1936238659370575e-06 1.5708000000269733
-  hidden position_8_0 -3.378008646137687e-06
-  hidden rotation_9 -0.57734896899533 -0.5773509192829185 -0.5773509192884331 2.0944019502952993
-  hidden position_9_0 -3.167359707675091e-06
-  hidden rotation_10 0.5773496596334478 0.5773514883052221 0.5773496596282769 2.0943981713249853
-  hidden position_12_0 -1.0779771261693385e-06
-  hidden position_12_1 1.077974601264237e-06
-  hidden translation_33 1.0779771261693385e-06 0 0
-  hidden translation_34 1.077974601264237e-06 0 0
-  hidden rotation_35 0 0 1 7.189713765272429e-07
-  hidden position_35_0 -3.5201257532597487e-07
-  hidden rotation_36 0.999999999999969 1.760056411569771e-07 -1.760062876629838e-07 1.570800000000031
-  hidden translation_45 7.441251093174422e-08 -1.4523300917446136e-07 0.0299959504214388
-  hidden rotation_45 0.06923224102123379 -0.991973938073796 -0.10580455087349677 5.9948200757724095e-12
-  hidden rotation_49 0.9999999999953889 2.147342710024499e-06 -2.1473505976691863e-06 1.57080000000461
-  hidden rotation_50 0.9999999999998558 -3.8002405956514143e-07 3.8002545547401973e-07 1.570800000000144
-  hidden rotation_51 0 0 -1 0.01088081757117395
-  hidden position_51_0 0.00031321392639466314
-  hidden rotation_52 -0.9999999754743496 0.00015660638538831411 0.00015660696063674452 1.5708000245256506
-  hidden rotation_53 0 0 -1 0.010952247849184152
-  hidden position_53_0 0.0002518522029347361
-  hidden rotation_54 -0.9999999841426755 0.0001259256375845923 0.00012592610013613642 1.5708000158573248
-  hidden rotation_55 0 0 -0.9999999999999999 0.007009555277069797
-  hidden position_55_0 0.00017937757796932408
-  hidden rotation_56 -0.9999999919559507 8.968845905897832e-05 8.968878850368891e-05 1.5708000080440494
-  hidden rotation_57 0 0 -0.9999999999999999 0.00708654114714525
-  hidden position_57_0 0.00011709664091078835
-  hidden rotation_58 -0.9999999965721068 5.854810526200215e-05 5.854832032159616e-05 1.5708000034278924
-  translation 0.0022345051333158526 1.7032722655296846 0.08821037340551185
-  rotation 0.8886497379719615 0.4541827496180454 -0.06340089235772593 0.040361567000639365
+  name "Tiago"
+  translation 0.0022274654785154786 1.7031659926956715 0.08820710190349221
+  rotation 0.8890800370398261 0.4532036400276377 -0.06436729295970692 0.04041684744860922
   controller "robot_controller"
-  supervisor TRUE
 }
 DEF N0 Solid {
-  translation -3 0 0
+  translation -5.31 -0.09 -0.07
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N0"
+      translation 0.329983 0.58 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N0 Table {
     }
   ]
   name "N0"
 }
 DEF N1 Solid {
+  translation 0 7.63 0
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N1"
+      translation 0.329983 0.58 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N1 Table {
     }
   ]
   name "N1"
 }
 DEF N2 Solid {
-  translation 3 0 0
+  translation 8.34 4.58 0
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N2"
+      translation 0.29998 0.579997 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N2 Table {
     }
   ]
   name "N2"
 }
 DEF N3 Solid {
-  translation 6 0 0
+  translation 10.59 -0.09 -0.07
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N3"
+      translation 0.26998 0.579979 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N3 Table {
     }
   ]
   name "N3"
 }
 DEF N4 Solid {
-  translation 5 2 0
+  translation 1.86 2 -0.07
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N4"
+      translation 0.23998 0.579985 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N4 Table {
     }
   ]
   name "N4"
 }
 DEF N5 Solid {
-  translation 6 3 0
+  translation 8.59 -6.18 -0.07
   children [
-    Shape {
-      appearance Marble {
-        IBLStrength 2
-      }
-      geometry Cylinder {
-        height 0.01
-        radius 0.2
-      }
+    UR10e {
+      name "UR10e-N5"
+      translation 0.24998 0.579977 0.74
+      rotation 0 0 1 1.5708
+      controller "robot_controller"
+      toolSlot [
+        RobotiqEPickGripper {
+          name "UR10e EPick"
+        }
+      ]
+    }
+    DEF N5 Table {
     }
   ]
   name "N5"
 }
 E-puck {
-  hidden position_0_0 3.0606979611083794e-08
-  hidden position_0_1 3.060701241387596e-08
-  hidden rotation_2 0 1 0 5.960464477539063e-08
-  translation -3 1.7813332981820657e-11 -6.396199578392534e-05
-  rotation 1 -1.4935151797753123e-16 2.3436050483593913e-15 7.3387569714909256e-09
+  name "E-puck"
+  translation -3 4.08 -6.39122e-05
+  rotation 1 -2.4204772719292246e-16 9.966276385560024e-16 1.2245406480552516e-08
   controller "robot_controller"
-  supervisor TRUE
   groundSensorsSlot [
     Compass {
     }
@@ -215,72 +171,46 @@ Table {
   size 2 2 0.74
 }
 PlasticCrate {
-  translation 4.140000842188553 -4.60999943238068 0.735683608708017
-  rotation 0.5201899574317278 -0.8540505865939172 -6.103903204926973e-05 0.0010331863771803529
+  translation 4.140000857506499 -4.609999420849052 0.735683584888076
+  rotation 0.5205254666127918 -0.8538461422171957 -6.346926713755836e-05 0.0010331336434120455
   mass 10
 }
 WaterBottle {
-  translation 3.9399887455437956 -4.732231380146659 0.7543553125314069
-  rotation -0.9027584697565031 -0.43014761049343175 -0.0004224567291691327 0.0020504235464975204
+  translation 3.9399887906910664 -4.732231259072793 0.754354070231385
+  rotation -0.885977063677587 -0.4637288832328557 -0.000406808123802822 0.0019857690083870975
 }
 Youbot {
-  hidden position_0_0 -1.6357791654542098e-07
-  hidden position_0_1 -1.7210479885676477e-07
-  hidden position_0_2 1.79065734256304e-07
-  hidden position_0_3 1.705392985566286e-07
-  hidden linearVelocity_0 1.646558650964944e-06 3.431200064577587e-07 -4.3950775456828515e-05
-  hidden angularVelocity_0 -5.113433269668868e-06 2.5684472306134862e-05 -9.5252939861431e-09
-  hidden position_1_0 2.3688735495294786e-06
-  hidden rotation_2 0 0 1 2.368862861304142e-06
-  hidden position_2_0 -2.1298800206708404e-07
-  hidden rotation_3 0 1 0 2.1283115233608642e-07
-  hidden position_3_0 3.314653621585916e-07
-  hidden rotation_4 0 -1 0 3.31864617039563e-07
-  hidden position_4_0 -2.5994637553594657e-09
-  hidden position_5_0 1.159381225212883e-09
-  hidden position_6_0 3.2663517475667324e-11
-  hidden position_6_1 -3.2639116411036784e-11
-  hidden translation_7 0 3.2663517475667324e-11 0.09
-  hidden translation_8 0 3.2639116411036784e-11 0.09
-  hidden rotation_9 0 -1 0 1.632340423778195e-07
-  hidden rotation_10 0 -1 0 1.7120130796843858e-07
-  hidden rotation_11 0 1 0 1.7881393432617193e-07
-  hidden rotation_12 0 1 0 1.7120130796843858e-07
-  translation 0.00048357255540114373 -1.0599904859873133 0.09880058758207841
-  rotation -0.02848441283212944 0.9993468954747766 0.02223557353734953 0.003988637558545821
+  name "Youbot"
+  translation 0.0008117308234615018 -1.91590840957498 0.09856177067591808
+  rotation -0.019301822897118372 0.9698112019020646 0.24309190093074057 0.004458969306563316
   controller "robot_controller"
-  supervisor TRUE
+  bodySlot [
+    WaterBottle {
+    }
+  ]
 }
 Floor {
   size 50 50
   appearance Parquetry {
   }
 }
+Pioneer3at {
+  name "Pioneer3at"
+  controller "robot_controller"
+  extensionSlot [
+    Pioneer3DistanceSensor {
+    }
+  ]
+}
 BeerBottle {
-  hidden linearVelocity_0 0.0001665098383686757 -0.00021879080395585137 -7.075846664597885e-05
-  hidden angularVelocity_0 0.002199033942069287 0.0016291215888207251 -8.935669037975543e-06
-  translation -0.1598983539099627 -1.0499831182470167 0.1484055014969538
-  rotation -0.03167761560007301 0.9994981380470934 -2.665121752979211e-05 0.0026790678148610144
+  translation 3.524559999514295 -4.8565200018642924 0.7404204622435836
+  rotation -0.00026136290901500927 6.869267350115797e-05 0.9999999634853727 0.004294108209788383
 }
 UR10e {
-  hidden position_0_0 0.00021238352665915679
-  hidden rotation_1 0 0 0.9999999999999999 0.00021238352763750903
-  hidden position_1_0 0.00012653399433978704
-  hidden rotation_2 0 1 0 1.570922533994339
-  hidden position_2_0 3.0534107912328524e-05
-  hidden rotation_3 0 1 0 3.0534104626112207e-05
-  hidden position_3_0 1.2794289470765839e-05
-  hidden rotation_4 0 1 0 1.5708087942894708
-  hidden position_4_0 -1.6637197877145127e-06
-  hidden rotation_5 0 0 -1 1.6635996981803494e-06
-  hidden position_5_0 1.4418038028657277e-06
-  hidden rotation_6 0 1 0 1.4419520382169732e-06
-  hidden position_7_0 9.838944277270592e-09
-  hidden translation_12 0 0 0.13700000983894428
+  name "UR10e-source"
   translation 3.21 -4.06 0.74
   rotation 0 0 1 1.5708
   controller "robot_controller"
-  supervisor TRUE
   toolSlot [
     RobotiqEPickGripper {
       name "UR10e EPick"
@@ -294,7 +224,7 @@ Robot {
   synchronization FALSE
 }
 WoodenBox {
-  translation 4.19 -3.71 1.0360759999999996
-  rotation 0.0019358825313088761 -0.8234103641742561 0.5674430584025535 3.197001063068294e-17
+  translation 4.19 -3.71 1.0360760002487777
+  rotation -0.07924196756122402 0.6326538956861606 0.7703698844387354 4.704162689299024e-17
   mass 10
 }

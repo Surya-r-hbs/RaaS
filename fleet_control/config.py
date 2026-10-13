@@ -1,5 +1,7 @@
 """Shared configuration for the RaaS VDA-5050 lab."""
 
+import os
+
 BROKER = "localhost"
 PORT = 1883
 
@@ -49,3 +51,10 @@ MAP_CONNECTIONS = (
     ("N3", "N4"),
     ("N4", "N5"),
 )
+
+# Simulation assumptions must be enabled explicitly in the fleet process.
+SIMULATION_TRANSPORT_ENABLED = (
+    os.environ.get("RAAS_WEBOTS_SIMULATION_MODE", "").strip() == "1"
+)
+LOAD_CONTACT_TOLERANCE_METERS = 0.015
+LOAD_FOOTPRINT_TOLERANCE_METERS = 0.005

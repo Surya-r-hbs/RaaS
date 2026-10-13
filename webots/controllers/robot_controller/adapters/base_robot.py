@@ -43,7 +43,10 @@ class BaseRobot:
         return sorted(self.capabilities)
 
     def get_position(self):
-        position = self.robot.getSelf().getPosition()
+        try:
+            position = self.robot.getSelf().getPosition()
+        except (AttributeError, RuntimeError):
+            return self.node_manager.get_robot_position()
         return {
             "x": float(position[0]),
             "y": float(position[1]),
@@ -51,10 +54,11 @@ class BaseRobot:
         }
 
     def get_orientation(self):
-        return [
-            float(value)
-            for value in self.robot.getSelf().getOrientation()
-        ]
+        try:
+            orientation = self.robot.getSelf().getOrientation()
+        except (AttributeError, RuntimeError):
+            return self.node_manager.get_robot_orientation()
+        return [float(value) for value in orientation]
 
     @property
     def transport_capability(self):

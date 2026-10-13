@@ -109,15 +109,9 @@ class UR10eAdapter(BaseRobot):
             )
         self.vacuum_gripper.enablePresence(TIME_STEP)
 
-        self.base_position = tuple(
-            float(value) for value in robot.getSelf().getPosition()
-        )
-        orientation = robot.getSelf().getOrientation()
-        self.base_rotation = [
-            [float(orientation[row * 3 + column]) for column in range(3)]
-            for row in range(3)
-        ]
-        self.base_rotation_inverse = _transpose_rotation(self.base_rotation)
+        self.base_position = None
+        self.base_rotation = None
+        self.base_rotation_inverse = None
         self.task = None
         self.capabilities.add("PICK_AND_PLACE")
 
@@ -139,6 +133,7 @@ class UR10eAdapter(BaseRobot):
     def start_pick_and_place(self, command):
         if self.task_active:
             raise RuntimeError("UR10e already has an active manipulation task")
+        self._ensure_base_pose()
         if self.vacuum_gripper.getPresence():
             raise RuntimeError(
                 "UR10e gripper is already attached to an object; release it "
@@ -191,6 +186,18 @@ class UR10eAdapter(BaseRobot):
             self._fail(str(error))
             raise
         return self.manipulation_status
+
+    def _ensure_base_pose(self):
+        position = self.get_position()
+        orientation = self.get_orientation()
+        self.base_position = tuple(
+            position[axis] for axis in ("x", "y", "z")
+        )
+        self.base_rotation = [
+            [orientation[row * 3 + column] for column in range(3)]
+            for row in range(3)
+        ]
+        self.base_rotation_inverse = _transpose_rotation(self.base_rotation)
 
     def _world_to_base(self, point):
         difference = tuple(
