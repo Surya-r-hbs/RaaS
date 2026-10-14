@@ -68,14 +68,23 @@ class ObjectInventorySupervisor:
 
     def publish_robot_snapshot(self):
         payload = discover_world_snapshot(self.supervisor)
+
+        print(
+            f"[DEBUG] Generated robot snapshot timestamp: "
+            f"{payload.get('timestamp')}",
+            flush=True,
+        )
+
         result = self.mqtt.publish(
             ROBOT_DISCOVERY_TOPIC,
             json.dumps(payload),
             qos=1,
             retain=True,
         )
+
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"Robot world snapshot publish failed: {result.rc}")
+            
         return payload
 
     def run(self):

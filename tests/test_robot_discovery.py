@@ -1,6 +1,6 @@
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -309,6 +309,130 @@ class RobotDiscoveryTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "no world snapshot record"):
             manager.get_robot_position()
+
+    def test_world_snapshot_accepts_z_timestamp(self):
+        manager = NodeManager("Pioneer3at")
+        timestamp = datetime.now(timezone.utc).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+
+        manager.update_world_snapshot(
+            {
+                "discoveryType": "WORLD_SNAPSHOT",
+                "timestamp": timestamp,
+                "navigationNodes": {"N1": {"x": 1.0, "y": 2.0, "z": 0.0}},
+                "worldRobots": [
+                    {
+                        "robotId": "Pioneer3at",
+                        "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                        "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(manager.get_node("N1")["x"], 1.0)
+
+    def test_world_snapshot_accepts_explicit_utc_offset(self):
+        manager = NodeManager("Pioneer3at")
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+        manager.update_world_snapshot(
+            {
+                "discoveryType": "WORLD_SNAPSHOT",
+                "timestamp": timestamp,
+                "navigationNodes": {},
+                "worldRobots": [
+                    {
+                        "robotId": "Pioneer3at",
+                        "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                        "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(manager.get_robot_position()["x"], 3.0)
+
+    def test_world_snapshot_rejects_invalid_or_missing_timestamp(self):
+        manager = NodeManager("Pioneer3at")
+        with self.assertRaisesRegex(ValueError, "timestamp"):
+            manager.update_world_snapshot(
+                {
+                    "discoveryType": "WORLD_SNAPSHOT",
+                    "navigationNodes": {},
+                    "worldRobots": [],
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "valid UTC timestamp"):
+            manager.update_world_snapshot(
+                {
+                    "discoveryType": "WORLD_SNAPSHOT",
+                    "timestamp": "not-a-timestamp",
+                    "navigationNodes": {},
+                    "worldRobots": [],
+                }
+            )
+
+    def test_world_snapshot_rejects_stale_or_future_messages(self):
+        manager = NodeManager("Pioneer3at")
+        old_timestamp = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+        future_timestamp = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+
+        with self.assertRaisesRegex(ValueError, "stale"):
+            manager.update_world_snapshot(
+                {
+                    "discoveryType": "WORLD_SNAPSHOT",
+                    "timestamp": old_timestamp,
+                    "navigationNodes": {},
+                    "worldRobots": [],
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "future"):
+            manager.update_world_snapshot(
+                {
+                    "discoveryType": "WORLD_SNAPSHOT",
+                    "timestamp": future_timestamp,
+                    "navigationNodes": {},
+                    "worldRobots": [],
+                }
+            )
+
+    def test_world_snapshot_rejects_older_record_than_last_accepted(self):
+        manager = NodeManager("Pioneer3at")
+        now = datetime.now(timezone.utc)
+        manager.update_world_snapshot(
+            {
+                "discoveryType": "WORLD_SNAPSHOT",
+                "timestamp": now.isoformat(),
+                "navigationNodes": {"N1": {"x": 1.0, "y": 2.0, "z": 0.0}},
+                "worldRobots": [
+                    {
+                        "robotId": "Pioneer3at",
+                        "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                        "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                    }
+                ],
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "older than the last accepted snapshot"):
+            manager.update_world_snapshot(
+                {
+                    "discoveryType": "WORLD_SNAPSHOT",
+                    "timestamp": (now - timedelta(seconds=1)).isoformat(),
+                    "navigationNodes": {"N1": {"x": 1.0, "y": 2.0, "z": 0.0}},
+                    "worldRobots": [
+                        {
+                            "robotId": "Pioneer3at",
+                            "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                            "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                        }
+                    ],
+                }
+            )
 
 
 if __name__ == "__main__":

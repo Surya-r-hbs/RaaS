@@ -9,30 +9,53 @@ from datetime import datetime, timezone
 # --------------------
 
 class NodeManager:
-    MAX_SNAPSHOT_AGE_SECONDS = 1.0
+    MAX_SNAPSHOT_AGE_SECONDS = 5.0
+    MAX_FUTURE_SKEW_SECONDS = 5.0
 
     def __init__(self, robot_id=None):
         self.active_robot_id = robot_id
         self.nodes = {}
         self.robots = {}
         self._snapshot_received_at = None
+        self._last_accepted_snapshot = None
+
+    @staticmethod
+    def _parse_snapshot_timestamp(timestamp):
+        if timestamp is None:
+            raise ValueError("World snapshot timestamp is missing")
+        timestamp_text = str(timestamp).strip()
+        if not timestamp_text:
+            raise ValueError("World snapshot timestamp is missing")
+        try:
+            parsed = datetime.fromisoformat(timestamp_text.replace("Z", "+00:00"))
+        except (TypeError, ValueError) as error:
+            raise ValueError("World snapshot has no valid UTC timestamp") from error
+        if parsed.tzinfo is None:
+            raise ValueError("World snapshot timestamp must include a UTC offset")
+        return parsed.astimezone(timezone.utc)
 
     def update_world_snapshot(self, payload):
         if payload.get("discoveryType") != "WORLD_SNAPSHOT":
             raise ValueError("Expected a Webots WORLD_SNAPSHOT discovery message")
-        timestamp = payload.get("timestamp")
-        try:
-            snapshot_time = datetime.fromisoformat(
-                str(timestamp).replace("Z", "+00:00")
-            )
-        except (TypeError, ValueError) as error:
-            raise ValueError("World snapshot has no valid UTC timestamp") from error
-        if snapshot_time.tzinfo is None:
-            raise ValueError("World snapshot timestamp must include a UTC offset")
-        age = (datetime.now(timezone.utc) - snapshot_time).total_seconds()
-        if age > self.MAX_SNAPSHOT_AGE_SECONDS or age < -5.0:
+        snapshot_time = self._parse_snapshot_timestamp(payload.get("timestamp"))
+        now_utc = datetime.now(timezone.utc)
+        age = (now_utc - snapshot_time).total_seconds()
+        future_skew = (snapshot_time - now_utc).total_seconds()
+        if age > self.MAX_SNAPSHOT_AGE_SECONDS:
             raise ValueError(
-                f"World snapshot is stale or from the future ({age:.2f}s)"
+                f"World snapshot is stale ({age:.2f}s older than the allowed "
+                f"{self.MAX_SNAPSHOT_AGE_SECONDS:.1f}s)"
+            )
+        if future_skew > self.MAX_FUTURE_SKEW_SECONDS:
+            raise ValueError(
+                f"World snapshot is from the future ({future_skew:.2f}s ahead)"
+            )
+        if (
+            self._last_accepted_snapshot is not None
+            and snapshot_time < self._last_accepted_snapshot
+        ):
+            raise ValueError(
+                "World snapshot is older than the last accepted snapshot"
             )
         nodes = payload.get("navigationNodes")
         robots = payload.get("worldRobots")
@@ -77,6 +100,7 @@ class NodeManager:
             discovered_robots[robot_id] = record
         self.nodes = discovered_nodes
         self.robots = discovered_robots
+        self._last_accepted_snapshot = snapshot_time
         self._snapshot_received_at = time.monotonic()
 
     @staticmethod

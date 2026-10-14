@@ -131,7 +131,7 @@ class RobotController:
     def handle_world_snapshot(self, payload):
         try:
             self.node_manager.update_world_snapshot(payload)
-        except (TypeError, ValueError, KeyError) as error:
+        except (TypeError, ValueError, KeyError, RuntimeError) as error:
             print(f"Rejected invalid Webots world snapshot: {error}")
             return
         self.world_robots = payload["worldRobots"]
