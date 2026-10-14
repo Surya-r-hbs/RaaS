@@ -39,12 +39,14 @@ class RobotRegistry:
                 "recoveryRequired": False,
                 "recoveryPending": False,
                 "recoveryReason": None,
+                "lastError": None,
                 "agentSessionId": None,
                 "capabilities": [],
                 "availableDevices": [],
                 "transportCapability": None,
                 "runtimeMode": None,
                 "simulationModeEnabled": False,
+                "navigationAwareness": None,
                 "lastUpdate": None,
                 "_last_seen": 0.0,
                 "_source": "webots",
@@ -199,6 +201,8 @@ class RobotRegistry:
             entry["agentOnline"] = True
             entry["_last_seen"] = time.monotonic()
             entry["lastUpdate"] = self._timestamp()
+            if "error" in payload:
+                entry["lastError"] = payload["error"] or None
             for field in (
                 "robotType",
                 "stationId",
@@ -212,6 +216,7 @@ class RobotRegistry:
                 "transportCapability",
                 "runtimeMode",
                 "simulationModeEnabled",
+                "navigationAwareness",
             ):
                 if field in payload:
                     entry[field] = payload[field]
@@ -234,16 +239,25 @@ class RobotRegistry:
                     entry["recoveryPending"] = False
                     entry["recoveryReason"] = None
             elif state in {"STOPPED", "ERROR"}:
-                if incoming_order:
-                    entry["lastOrderId"] = incoming_order
+                if incoming_order or entry.get("currentOrder"):
+                    entry["lastOrderId"] = incoming_order or entry["currentOrder"]
                 entry["lastOrderStatus"] = state
-                entry["currentOrder"] = None
-                entry["recoveryRequired"] = state == "ERROR"
-                entry["recoveryReason"] = (
-                    "Robot reported an error; operator recovery is required"
-                    if state == "ERROR"
-                    else None
+                if incoming_order and not entry.get("currentOrder"):
+                    entry["currentOrder"] = incoming_order
+                entry["recoveryPending"] = False
+                entry["recoveryRequired"] = bool(
+                    entry.get("currentOrder") or incoming_order
                 )
+                if state == "ERROR":
+                    entry["recoveryReason"] = entry["lastError"] or (
+                        "Robot reported an error; operator recovery is required"
+                    )
+                else:
+                    entry["recoveryReason"] = (
+                        "Robot was stopped by operator request; recovery is required"
+                        if entry.get("currentOrder") or incoming_order
+                        else None
+                    )
             elif state == "IDLE":
                 if incoming_order is None or incoming_order == entry["currentOrder"]:
                     if entry["currentOrder"]:
@@ -289,6 +303,7 @@ class RobotRegistry:
                 "transportCapability",
                 "runtimeMode",
                 "simulationModeEnabled",
+                "navigationAwareness",
             ):
                 if field in payload:
                     entry[field] = payload[field]
@@ -333,6 +348,7 @@ class RobotRegistry:
         current_order=None,
         current_node=None,
         current_edge=None,
+        error=None,
     ):
         with self._lock:
             entry = self._get_or_create(manufacturer, robot_id)
@@ -351,14 +367,34 @@ class RobotRegistry:
                     "STOPPED": "STOPPED",
                     "ERROR": "FAILED",
                 }[state]
-                entry["currentOrder"] = None
                 entry["recoveryPending"] = False
-                entry["recoveryRequired"] = state == "ERROR"
-                entry["recoveryReason"] = (
-                    "Robot reported an error; operator recovery is required"
-                    if state == "ERROR"
-                    else None
-                )
+                if state == "ERROR":
+                    if current_order and not entry.get("currentOrder"):
+                        entry["currentOrder"] = current_order
+                    entry["recoveryRequired"] = bool(
+                        entry.get("currentOrder") or current_order
+                    )
+                    entry["lastError"] = error or entry.get("lastError")
+                    entry["recoveryReason"] = entry["lastError"] or (
+                        "Robot reported an error; operator recovery is required"
+                    )
+                elif state == "STOPPED":
+                    entry["lastError"] = None
+                    if current_order and not entry.get("currentOrder"):
+                        entry["currentOrder"] = current_order
+                    entry["recoveryRequired"] = bool(
+                        entry.get("currentOrder") or current_order
+                    )
+                    entry["recoveryReason"] = (
+                        "Robot was stopped by operator request; recovery is required"
+                        if entry.get("currentOrder") or current_order
+                        else None
+                    )
+                else:
+                    entry["currentOrder"] = None
+                    entry["recoveryRequired"] = False
+                    entry["recoveryReason"] = None
+                    entry["lastError"] = None
             else:
                 entry["currentOrder"] = current_order
                 entry["recoveryPending"] = False

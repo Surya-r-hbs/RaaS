@@ -1,6 +1,16 @@
 let data = null;
 
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+
 // --------------------
 // REFRESH
 // --------------------
@@ -237,6 +247,12 @@ function render() {
             ${robot.available ? "Available" : robot.availabilityReason || "Unavailable"}
           </div>
 
+          ${
+            robot.lastError
+              ? `<div>Error: ${escapeHtml(robot.lastError)}</div>`
+              : ""
+          }
+
           <div>
             Node:
             ${robot.currentNode || "-"}
@@ -420,7 +436,13 @@ function render() {
 
           ${
             robot.recoveryRequired
-              ? `<p>Recovery: ${robot.recoveryReason || "Required"}</p>`
+              ? `<p>Recovery: ${escapeHtml(robot.recoveryReason || "Required")}</p>`
+              : ""
+          }
+
+          ${
+            robot.lastError
+              ? `<p>Last error: ${escapeHtml(robot.lastError)}</p>`
               : ""
           }
 

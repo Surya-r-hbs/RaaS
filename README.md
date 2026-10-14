@@ -252,15 +252,30 @@ the actual MQTT robot/fleet events.
 
 ## Webots
 
-The Webots world must contain DEF nodes:
+The Webots world currently defines station navigation nodes `N0` through
+`N5`.
 
-N0
-N1
-N2
-N3
+Navigation uses the dedicated Supervisor's fresh simulation snapshot for
+X/Y waypoint poses, known static collision geometry, and mobile robot poses.
+The shared grid planner inflates obstacles by the robot's Supervisor-exposed
+collision footprint or a conservative Webots R2025a model profile, plus a
+safety margin, follows a collision-free route, and checks
+arrival over multiple pose samples. Station waypoints `N0`-`N5` are located at
+their station tables; the planner preserves these IDs and chooses a reachable
+perimeter approach rather than driving to the table center. Unknown or
+incomplete static collision geometry, an unsupported robot footprint, stale
+robot poses, or an unreachable goal stops navigation with an error instead of
+assuming the path is clear. The checked-in warehouse's BeerBottle PROTO is
+visual-only and has no collision object, so it is excluded from the navigation
+obstacle map.
 
-The current robot controller assumes the route is physically laid out so that
-driving forward reaches the next target node.
+This awareness is **Webots simulation-only**: Supervisor world access is not a
+physical robot sensor and must not be treated as obstacle-awareness capability
+for real deployments. The Pioneer3at forward sonar currently provides an
+additional stop-only safeguard; it does not itself route around unmodeled
+obstacles. Other model sensors are not currently wired into local avoidance.
+Webots scenarios must be run locally to verify model-specific motion and route
+tracking.
 
 ## Order planning
 
@@ -272,10 +287,11 @@ uses that telemetry as the start of the planned order.
 Required route nodes are kept in the specified order, with the shortest
 connected map path inserted between them. A destination is appended as a
 direct navigation leg from the current/last required node; destination-only
-orders therefore contain just the live start node and destination. This
-prototype does not perform obstacle avoidance or collision-aware path planning.
-Keep `MAP_NODE_POSITIONS` and `MAP_CONNECTIONS` in `fleet_control/config.py`
-consistent with the Webots world for required-waypoint routing.
+orders therefore contain just the live start node and destination. Keep
+`MAP_NODE_POSITIONS` and `MAP_CONNECTIONS` in `fleet_control/config.py`
+consistent with the Webots world for required-waypoint routing. Robot
+navigation independently replans each leg against the Supervisor map; Fleet's
+required-waypoint graph does not itself represent obstacle geometry.
 
 ## Warehouse object inventory
 

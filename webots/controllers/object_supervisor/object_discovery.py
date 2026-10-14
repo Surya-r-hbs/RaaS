@@ -20,6 +20,14 @@ OBJECT_TYPES = {
 CRATE_WALL_THICKNESS_FACTOR = 0.035
 NAVIGATION_DEF = re.compile(r"N\d+")
 INFRASTRUCTURE_TYPES = {"Floor"}
+NON_COLLIDING_PROTOS = {"BeerBottle"}
+WEBOTS_R2025A_ROBOT_FOOTPRINT_RADII = {
+    "epuck": 0.05,
+    "mir100": 0.55,
+    "pioneer3at": 0.32,
+    "tiago": 0.30,
+    "youbot": 0.40,
+}
 
 
 def _timestamp():
@@ -100,6 +108,26 @@ def _size(node):
     if values is None or any(value <= 0 for value in values):
         return None
     return dict(zip(("x", "y", "z"), values))
+
+
+def _floor_size(node):
+    field = _field(node, "size")
+    getter = getattr(field, "getSFVec2f", None)
+    if callable(getter):
+        try:
+            values = tuple(float(value) for value in getter())
+        except (TypeError, ValueError):
+            values = ()
+        if (
+            len(values) == 2
+            and all(math.isfinite(value) and value > 0 for value in values)
+        ):
+            return dict(zip(("x", "y"), values))
+
+    size = _size(node)
+    if size is not None:
+        return {"x": size["x"], "y": size["y"]}
+    return None
 
 
 def _mass(node):
@@ -244,9 +272,11 @@ def _geometry_from_tree(
     parent_position=(0.0, 0.0, 0.0),
     parent_rotation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
     is_root=True,
+    geometry_complete=None,
 ):
     """Extract a local axis-aligned bound from exposed shapes or collision geometry."""
     visited = visited if visited is not None else set()
+    geometry_complete = geometry_complete if geometry_complete is not None else [True]
     try:
         node_id = node.getId()
     except (AttributeError, TypeError, ValueError):
@@ -270,14 +300,19 @@ def _geometry_from_tree(
     )
 
     points = []
-    if str(node.getTypeName()) == "Shape":
+    node_type = str(node.getTypeName())
+    if node_type == "Shape":
         geometry = _node_from_field(node, "geometry")
         if geometry is not None:
             points.extend(_geometry_points(geometry))
-    elif str(node.getTypeName()) in {
+        if not points:
+            geometry_complete[0] = False
+    elif node_type in {
         "Box", "Capsule", "Cylinder", "IndexedFaceSet", "Sphere",
     }:
         points.extend(_geometry_points(node))
+        if not points:
+            geometry_complete[0] = False
     points = [
         tuple(
             world_position[axis]
@@ -296,14 +331,16 @@ def _geometry_from_tree(
                     world_position,
                     local_rotation,
                     is_root=False,
+                    geometry_complete=geometry_complete,
                 )
             )
     return points
 
 
 def _generic_geometry(node):
-    points = _geometry_from_tree(node)
-    if not points or any(
+    geometry_complete = [True]
+    points = _geometry_from_tree(node, geometry_complete=geometry_complete)
+    if not geometry_complete[0] or not points or any(
         len(point) != 3
         or not all(math.isfinite(value) for value in point)
         for point in points
@@ -386,6 +423,32 @@ def _geometry(node, proto_type):
     )
 
 
+def discover_robot_footprint_radius(node):
+    """Return a conservative planar radius from the exposed collision shape."""
+    bounding_object = _node_from_field(node, "boundingObject")
+    if bounding_object is None:
+        return None
+    geometry_complete = [True]
+    points = _geometry_from_tree(
+        bounding_object,
+        geometry_complete=geometry_complete,
+    )
+    if not geometry_complete[0] or not points or any(
+        len(point) != 3
+        or not all(math.isfinite(value) for value in point)
+        for point in points
+    ):
+        return None
+    radius = max(math.hypot(point[0], point[1]) for point in points)
+    return radius if math.isfinite(radius) and radius > 0 else None
+
+
+def robot_model_footprint_radius(proto_type):
+    """Return the conservative R2025a base envelope for opaque robot PROTOs."""
+    normalized_type = re.sub(r"[^a-z0-9]", "", str(proto_type).lower())
+    return WEBOTS_R2025A_ROBOT_FOOTPRINT_RADII.get(normalized_type)
+
+
 def _base_type(node):
     getter = getattr(node, "getBaseTypeName", None)
     if callable(getter):
@@ -413,7 +476,7 @@ def _children(node):
     return _field_nodes(node, "children")
 
 
-def _walk_scene(nodes):
+def _walk_scene(nodes, include_station_tables=False):
     """Walk scene children, but emit solids rather than their visual subnodes."""
     visited = set()
     stack = [(node, None) for node in reversed(nodes)]
@@ -440,7 +503,12 @@ def _walk_scene(nodes):
                 )
             except (AttributeError, TypeError, ValueError):
                 stable_id = None
-            if not NAVIGATION_DEF.fullmatch(definition or ""):
+            is_station_table = (
+                include_station_tables
+                and NAVIGATION_DEF.fullmatch(definition or "")
+                and _proto_type(node) == "Table"
+            )
+            if not NAVIGATION_DEF.fullmatch(definition or "") or is_station_table:
                 yield node, parent_id
         next_parent = stable_id or parent_id
         stack.extend(
@@ -538,4 +606,179 @@ def discover_objects(supervisor, timestamp=None):
         "timestamp": snapshot_time,
         "coordinateSystem": "X/Y floor plane; Z height",
         "objects": objects,
+    }
+
+
+def discover_navigation_map(supervisor):
+    """Return conservative floor bounds and collidable scene geometry."""
+    root = supervisor.getRoot()
+    children = root.getField("children")
+    if children is None:
+        raise RuntimeError("Cannot inspect Webots world children for navigation")
+
+    root_nodes = [
+        children.getMFNode(index)
+        for index in range(children.getCount())
+    ]
+    obstacles = []
+    issues = []
+    floor_bounds = None
+    floor_area = 0.0
+
+    for node, _parent_id in _walk_scene(
+        root_nodes,
+        include_station_tables=True,
+    ):
+        try:
+            proto_type = _proto_type(node)
+            definition = node.getDef()
+        except (AttributeError, TypeError, ValueError):
+            continue
+
+        if proto_type == "Floor":
+            size = _floor_size(node)
+            if size is None:
+                issues.append("Floor geometry is unavailable")
+                continue
+            try:
+                candidate_bounds = _world_xy_bounds(
+                    node,
+                    (
+                        (-size["x"] / 2, -size["y"] / 2, 0.0),
+                        (-size["x"] / 2, size["y"] / 2, 0.0),
+                        (size["x"] / 2, -size["y"] / 2, 0.0),
+                        (size["x"] / 2, size["y"] / 2, 0.0),
+                    ),
+                )
+            except ValueError as error:
+                issues.append(f"Floor geometry is invalid: {error}")
+                continue
+            candidate_area = size["x"] * size["y"]
+            # Worlds may include small floor tiles nested in station wrapper Solids.
+            if floor_bounds is None or candidate_area > floor_area:
+                floor_bounds = candidate_bounds
+                floor_area = candidate_area
+            continue
+
+        if (
+            proto_type == "Solid"
+            and _node_from_field(node, "boundingObject") is None
+        ):
+            continue
+
+        if proto_type in NON_COLLIDING_PROTOS:
+            continue
+
+        if proto_type not in {
+            "Table",
+            "PlasticCrate",
+            "WaterBottle",
+            "WoodenBox",
+        }:
+            issues.append(
+                f"Collision geometry is not classified for "
+                f"{definition or proto_type}"
+            )
+            continue
+
+        geometry = _geometry(node, proto_type)
+        if geometry is None:
+            issues.append(
+                f"Collision geometry is unavailable for "
+                f"{definition or _object_name(node, proto_type)}"
+            )
+            continue
+
+        local_bounds = geometry["bounds"]
+        corners = [
+            (x, y, z)
+            for x in (
+                local_bounds["min"]["x"],
+                local_bounds["max"]["x"],
+            )
+            for y in (
+                local_bounds["min"]["y"],
+                local_bounds["max"]["y"],
+            )
+            for z in (
+                local_bounds["min"]["z"],
+                local_bounds["max"]["z"],
+            )
+        ]
+        name = _object_name(node, proto_type)
+        try:
+            world_bounds = _world_xy_bounds(node, corners)
+        except ValueError as error:
+            issues.append(
+                f"Collision geometry is invalid for "
+                f"{definition or name}: {error}"
+            )
+            continue
+        try:
+            node_id = node.getId()
+        except (AttributeError, TypeError, ValueError):
+            node_id = None
+        obstacle_id = (
+            f"webots-node:{node_id}"
+            if node_id is not None
+            else f"def:{definition or name}"
+        )
+        obstacles.append(
+            {
+                "id": obstacle_id,
+                "name": name,
+                "def": definition or None,
+                "type": proto_type,
+                "bounds": world_bounds,
+                "geometrySource": geometry["source"],
+                "approachAllowed": (
+                    proto_type == "Table"
+                    and NAVIGATION_DEF.fullmatch(definition or "") is not None
+                ),
+            }
+        )
+
+    if floor_bounds is None:
+        issues.append("A bounded floor surface could not be identified")
+    return {
+        "floorBounds": floor_bounds,
+        "obstacles": obstacles,
+        "complete": not issues,
+        "issues": issues,
+        "source": "WEBOTS_SUPERVISOR_SIMULATION",
+    }
+
+
+def _world_xy_bounds(node, local_points):
+    try:
+        position = tuple(float(value) for value in node.getPosition())
+        orientation = tuple(float(value) for value in node.getOrientation())
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError("Supervisor did not provide finite world geometry") from error
+    if (
+        len(position) != 3
+        or len(orientation) != 9
+        or not all(math.isfinite(value) for value in position + orientation)
+    ):
+        raise ValueError("Supervisor returned invalid world geometry")
+
+    world_points = [
+        tuple(
+            position[row]
+            + sum(orientation[row * 3 + column] * point[column] for column in range(3))
+            for row in range(3)
+        )
+        for point in local_points
+    ]
+    if not world_points:
+        raise ValueError("Supervisor returned empty geometry")
+    return {
+        "min": {
+            "x": min(point[0] for point in world_points),
+            "y": min(point[1] for point in world_points),
+        },
+        "max": {
+            "x": max(point[0] for point in world_points),
+            "y": max(point[1] for point in world_points),
+        },
     }

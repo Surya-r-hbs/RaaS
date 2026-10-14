@@ -3,6 +3,8 @@ import re
 import time
 from datetime import datetime, timezone
 
+from navigation_planner import plan_route
+
 
 # --------------------
 # NODE MANAGER
@@ -11,13 +13,16 @@ from datetime import datetime, timezone
 class NodeManager:
     MAX_SNAPSHOT_AGE_SECONDS = 5.0
     MAX_FUTURE_SKEW_SECONDS = 5.0
+    MAX_DYNAMIC_OBSTACLE_AGE_SECONDS = 0.5
 
     def __init__(self, robot_id=None):
         self.active_robot_id = robot_id
         self.nodes = {}
         self.robots = {}
+        self.navigation_map = None
         self._snapshot_received_at = None
         self._last_accepted_snapshot = None
+        self._snapshot_generation = 0
 
     @staticmethod
     def _parse_snapshot_timestamp(timestamp):
@@ -97,11 +102,151 @@ class NodeManager:
                 raise ValueError(
                     f"World snapshot has invalid orientation for {robot_id!r}"
                 )
+            footprint_radius = record.get("footprintRadius")
+            if footprint_radius is not None and (
+                not isinstance(footprint_radius, (int, float))
+                or not math.isfinite(footprint_radius)
+                or footprint_radius <= 0
+            ):
+                raise ValueError(
+                    f"World snapshot has invalid footprint for {robot_id!r}"
+                )
             discovered_robots[robot_id] = record
+        navigation_map = payload.get("navigationMap")
+        if navigation_map is not None:
+            self._validate_navigation_map(navigation_map)
         self.nodes = discovered_nodes
         self.robots = discovered_robots
+        self.navigation_map = navigation_map
         self._last_accepted_snapshot = snapshot_time
         self._snapshot_received_at = time.monotonic()
+        self._snapshot_generation += 1
+
+    @classmethod
+    def _validate_navigation_map(cls, navigation_map):
+        if not isinstance(navigation_map, dict):
+            raise ValueError("World snapshot navigationMap must be an object")
+        if not isinstance(navigation_map.get("complete"), bool):
+            raise ValueError(
+                "World snapshot navigationMap must declare whether it is complete"
+            )
+        obstacles = navigation_map.get("obstacles")
+        if not isinstance(obstacles, list):
+            raise ValueError("World snapshot navigationMap has no obstacle list")
+        if navigation_map.get("complete"):
+            floor_bounds = navigation_map.get("floorBounds")
+            if not isinstance(floor_bounds, dict):
+                raise ValueError("Complete navigationMap has no floor bounds")
+            cls._validate_bounds(floor_bounds, "floor")
+        for obstacle in obstacles:
+            if not isinstance(obstacle, dict):
+                raise ValueError("World snapshot contains an invalid obstacle")
+            cls._validate_bounds(
+                obstacle.get("bounds"),
+                str(obstacle.get("name") or obstacle.get("id") or "obstacle"),
+            )
+
+    @staticmethod
+    def _validate_bounds(bounds, label):
+        if not isinstance(bounds, dict):
+            raise ValueError(f"World snapshot has no bounds for {label}")
+        try:
+            minimum = {
+                axis: float(bounds["min"][axis])
+                for axis in ("x", "y")
+            }
+            maximum = {
+                axis: float(bounds["max"][axis])
+                for axis in ("x", "y")
+            }
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"World snapshot has invalid bounds for {label}") from error
+        if (
+            not all(math.isfinite(value) for value in (*minimum.values(), *maximum.values()))
+            or minimum["x"] >= maximum["x"]
+            or minimum["y"] >= maximum["y"]
+        ):
+            raise ValueError(f"World snapshot has invalid bounds for {label}")
+
+    def plan_navigation_path(self, start_position, node_id):
+        self._require_fresh_snapshot()
+        if self.navigation_map is None:
+            raise RuntimeError(
+                "Safe navigation is unavailable: the Webots snapshot has no "
+                "obstacle map"
+            )
+        if not self.navigation_map.get("complete"):
+            issues = self.navigation_map.get("issues") or ["unknown map geometry"]
+            raise RuntimeError(
+                "Safe navigation is unavailable: " + "; ".join(map(str, issues))
+            )
+        target = self.nodes.get(node_id)
+        if target is None:
+            raise RuntimeError(f"Navigation node is unavailable: {node_id}")
+        robot = self.get_robot_record()
+        footprint_radius = robot.get("footprintRadius")
+        if footprint_radius is None:
+            raise RuntimeError(
+                f"Safe navigation is unavailable: collision footprint for "
+                f"{robot.get('robotType') or robot['robotId']} is unknown"
+            )
+
+        obstacles = list(self.navigation_map["obstacles"])
+        for other in self.robots.values():
+            if (
+                other["robotId"] == self.active_robot_id
+                or not other.get("mobile")
+                or other.get("stationId")
+            ):
+                continue
+            if (
+                self._snapshot_received_at is None
+                or time.monotonic() - self._snapshot_received_at
+                > self.MAX_DYNAMIC_OBSTACLE_AGE_SECONDS
+            ):
+                raise RuntimeError(
+                    "Safe navigation is unavailable: other robot poses are stale"
+                )
+            radius = other.get("footprintRadius")
+            if radius is None:
+                raise RuntimeError(
+                    f"Safe navigation is unavailable: collision footprint for "
+                    f"robot {other['robotId']} is unknown"
+                )
+            position = self._vector(
+                other.get("position"),
+                ("x", "y"),
+                f"robot {other['robotId']} position",
+            )
+            obstacles.append(
+                {
+                    "id": f"robot:{other['robotId']}",
+                    "name": f"robot {other['robotId']}",
+                    "type": "dynamic_robot",
+                    "bounds": {
+                        "min": {
+                            "x": position["x"] - radius,
+                            "y": position["y"] - radius,
+                        },
+                        "max": {
+                            "x": position["x"] + radius,
+                            "y": position["y"] + radius,
+                        },
+                    },
+                    "approachAllowed": False,
+                }
+            )
+
+        try:
+            return plan_route(
+                start_position,
+                target,
+                obstacles,
+                self.navigation_map["floorBounds"],
+                footprint_radius,
+            )
+        except ValueError as error:
+            raise RuntimeError(str(error)) from error
 
     @staticmethod
     def _vector(value, axes, label):

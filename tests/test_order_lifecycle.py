@@ -429,6 +429,107 @@ class OrderLifecycleTests(unittest.TestCase):
             "newer",
         )
 
+    def test_manual_stop_keeps_active_order_recoverable(self):
+        registry = RobotRegistry()
+        registry.register_agent(
+            {
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "agentSessionId": "session",
+                "capabilities": ["NAVIGATION"],
+            }
+        )
+        registry.update_status(
+            {
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "agentSessionId": "session",
+                "statusSequence": 1,
+                "state": "EXECUTING",
+                "orderId": "active",
+            }
+        )
+
+        registry.update_status(
+            {
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "agentSessionId": "session",
+                "statusSequence": 2,
+                "state": "STOPPED",
+                "orderId": "active",
+            }
+        )
+
+        record = registry.get("DemoRobot", "youBot")
+        self.assertEqual(record["currentOrder"], "active")
+        self.assertTrue(record["recoveryRequired"])
+        self.assertEqual(record["lastOrderStatus"], "STOPPED")
+        self.assertFalse(record["available"])
+
+    def test_stop_endpoint_marks_robot_for_recovery(self):
+        order = self.add_order("active", "EXECUTING")
+        robot = erp.robots[("DemoRobot", "youBot")]
+        robot.update(
+            status="EXECUTING",
+            currentOrder="active",
+            available=False,
+            recoveryRequired=False,
+            recoveryReason=None,
+        )
+
+        response = self.client.post("/api/robots/DemoRobot/youBot/stop")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(robot["currentOrder"], "active")
+        self.assertTrue(robot["recoveryRequired"])
+        self.assertIn("recovery", robot["recoveryReason"].lower())
+        self.assertFalse(robot["available"])
+        self.assertEqual(order["status"], "STOPPING")
+
+    def test_robot_navigation_error_is_preserved_for_recovery_ui(self):
+        original_registry = fleet.robot_registry
+        original_missions = fleet.missions
+        fleet.robot_registry = RobotRegistry()
+        fleet.missions = {
+            ("DemoRobot", "youBot"): fleet.Mission(
+                make_order("active", "EXECUTING"),
+                state="EXECUTING",
+            )
+        }
+        self.addCleanup(setattr, fleet, "robot_registry", original_registry)
+        self.addCleanup(setattr, fleet, "missions", original_missions)
+
+        fleet.robot_registry.register_agent(
+            {
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "agentSessionId": "session",
+            }
+        )
+        navigation_error = "No collision-free route to N2"
+        with (
+            patch.object(fleet, "publish_robot_registry"),
+            patch.object(fleet, "publish_state"),
+        ):
+            fleet.handle_robot_status(
+                {
+                    "robotId": "youBot",
+                    "manufacturer": "DemoRobot",
+                    "agentSessionId": "session",
+                    "statusSequence": 1,
+                    "state": "ERROR",
+                    "orderId": "active",
+                    "error": navigation_error,
+                }
+            )
+
+        robot = fleet.robot_registry.get("DemoRobot", "youBot")
+        self.assertEqual(robot["lastError"], navigation_error)
+        self.assertEqual(robot["recoveryReason"], navigation_error)
+        self.assertTrue(robot["recoveryRequired"])
+        self.assertFalse(robot["available"])
+
     def test_completed_mission_heartbeat_keeps_robot_online_and_available(self):
         registry = RobotRegistry(heartbeat_timeout_seconds=8.0)
         clock = [1.0]
@@ -798,6 +899,15 @@ class OrderLifecycleTests(unittest.TestCase):
         class Nodes:
             def get_node(self, node_id):
                 return {"x": 2.0, "y": 0.0, "z": 0.0}
+
+            def plan_navigation_path(self, start, node_id):
+                target = self.get_node(node_id)
+                goal = {"x": target["x"], "y": target["y"]}
+                return {
+                    "path": [(start["x"], start["y"]), (goal["x"], goal["y"])],
+                    "goal": goal,
+                    "approach": False,
+                }
 
         left = Motor()
         right = Motor()

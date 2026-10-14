@@ -4,6 +4,11 @@ import math
 import re
 from datetime import datetime, timezone
 
+from object_discovery import (
+    discover_navigation_map,
+    discover_robot_footprint_radius,
+    robot_model_footprint_radius,
+)
 
 NAVIGATION_DEF = re.compile(r"N\d+")
 SUPERVISOR_CONTROLLER = "object_supervisor"
@@ -124,6 +129,33 @@ def discover_world_snapshot(supervisor, manufacturer="DemoRobot"):
                 }
                 if robot_type:
                     record["robotType"] = robot_type
+                normalized_type = re.sub(r"[^a-z0-9]", "", robot_type.lower())
+                is_mobile = normalized_type in {
+                    "epuck",
+                    "mir100",
+                    "pioneer3at",
+                    "tiago",
+                    "youbot",
+                }
+                record["mobile"] = is_mobile
+                if is_mobile:
+                    footprint_radius = discover_robot_footprint_radius(node)
+                    footprint_source = "SUPERVISOR_COLLISION_GEOMETRY"
+                    footprint_status = "VERIFIED"
+                    if footprint_radius is None:
+                        footprint_radius = robot_model_footprint_radius(robot_type)
+                        footprint_source = "WEBOTS_R2025A_MODEL_PROFILE"
+                        footprint_status = "MODEL_PROFILE"
+                    record["footprintStatus"] = (
+                        footprint_status
+                        if footprint_radius is not None
+                        else "UNKNOWN"
+                    )
+                    record["footprintSource"] = (
+                        footprint_source if footprint_radius is not None else "UNKNOWN"
+                    )
+                    if footprint_radius is not None:
+                        record["footprintRadius"] = footprint_radius
                 if station_id or custom_station:
                     record["stationId"] = station_id or custom_station
                 robots.append(record)
@@ -155,4 +187,5 @@ def discover_world_snapshot(supervisor, manufacturer="DemoRobot"):
         "manufacturer": manufacturer,
         "worldRobots": robots,
         "navigationNodes": navigation_nodes,
+        "navigationMap": discover_navigation_map(supervisor),
     }

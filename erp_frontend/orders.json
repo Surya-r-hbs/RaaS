@@ -78,5 +78,491 @@
     "dispatchError": null,
     "_lastVdaHeaderId": 1,
     "recoveryReason": null
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T06:25:38.488Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "Pioneer3at",
+    "orderId": "order1",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N4",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "COMPLETED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N3",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T06:26:36.800Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "E-puck",
+    "orderId": "o1",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N1",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N2",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "COMPLETED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N2",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T06:26:48.515Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "MiR100",
+    "orderId": "o2",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "COMPLETED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N3",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:02:01.757Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "MiR100",
+    "orderId": "oo1",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N1",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "INTERRUPTED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N1",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null,
+    "recoveryHistory": [
+      {
+        "timestamp": "2026-10-14T11:02:26.019Z",
+        "robotId": "MiR100",
+        "manufacturer": "DemoRobot",
+        "orderId": "oo1",
+        "reason": "Verified robot is safe; reconciling stale mission state",
+        "result": "REQUESTED"
+      },
+      {
+        "timestamp": "2026-10-14T11:02:26.204Z",
+        "robotId": "MiR100",
+        "manufacturer": "DemoRobot",
+        "orderId": "oo1",
+        "result": "CONFIRMED"
+      }
+    ]
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:04:11.620Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "MiR100",
+    "orderId": "oooo1",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N1",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "INTERRUPTED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N1",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "A fresh robot report confirmed no active assignment; the previous mission was not resumed"
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:04:31.685Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "E-puck",
+    "orderId": "o01",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N1",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N4",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "INTERRUPTED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N4",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "A fresh robot report confirmed no active assignment; the previous mission was not resumed"
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:06:29.453Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "Pioneer3at",
+    "orderId": "o222",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N4",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N2",
+        "sequenceId": 4,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N1",
+        "sequenceId": 6,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N2",
+        "sequenceId": 8,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 10,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      },
+      {
+        "edgeId": "E2",
+        "sequenceId": 3,
+        "released": true,
+        "actions": []
+      },
+      {
+        "edgeId": "E3",
+        "sequenceId": 5,
+        "released": true,
+        "actions": []
+      },
+      {
+        "edgeId": "E4",
+        "sequenceId": 7,
+        "released": true,
+        "actions": []
+      },
+      {
+        "edgeId": "E5",
+        "sequenceId": 9,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "INTERRUPTED",
+    "erpPlanningMode": "route",
+    "erpRoute": [
+      "N1",
+      "N2",
+      "N3"
+    ],
+    "erpDestination": null,
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "A fresh robot report confirmed no active assignment; the previous mission was not resumed"
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:13:25.328Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "Pioneer3at",
+    "orderId": "\u00f21",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N4",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "INTERRUPTED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N3",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": null,
+    "recoveryHistory": [
+      {
+        "timestamp": "2026-10-14T11:14:24.829Z",
+        "robotId": "Pioneer3at",
+        "manufacturer": "DemoRobot",
+        "orderId": "\u00f21",
+        "reason": "Verified robot is safe; reconciling stale mission state",
+        "result": "REQUESTED"
+      },
+      {
+        "timestamp": "2026-10-14T11:14:24.942Z",
+        "robotId": "Pioneer3at",
+        "manufacturer": "DemoRobot",
+        "orderId": "\u00f21",
+        "result": "CONFIRMED"
+      }
+    ]
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:39:41.211Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "Pioneer3at",
+    "orderId": "orderoo1",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "RECOVERY_REQUIRED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N3",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "Robot reports IDLE but the fleet still holds an order assignment"
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-14T11:45:12.150Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "MiR100",
+    "orderId": "o11111",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N5",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N1",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "RECOVERY_REQUIRED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N1",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "Safe navigation is unavailable: collision footprint for MiR100 is unknown"
   }
 ]

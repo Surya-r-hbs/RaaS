@@ -15,7 +15,7 @@ for path in (str(FLEET_DIR), str(ERP_DIR), str(SUPERVISOR_DIR), str(ROBOT_CONTRO
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from object_discovery import discover_objects
+from object_discovery import discover_navigation_map, discover_objects
 from object_registry import ObjectRegistry
 from world_discovery import discover_world_snapshot
 
@@ -31,6 +31,9 @@ class Field:
         return self.value
 
     def getSFVec3f(self):
+        return self.value
+
+    def getSFVec2f(self):
         return self.value
 
     def getSFFloat(self):
@@ -167,6 +170,103 @@ def fresh_snapshot(objects):
 
 
 class ObjectDiscoveryTests(unittest.TestCase):
+    def test_navigation_map_reads_webots_floor_vec2_size_and_ignores_wrapper_solid(self):
+        floor = SceneObject(
+            10,
+            "Floor",
+            "warehouse floor",
+            [0.0, 0.0, 0.0],
+            [50.0, 50.0],
+        )
+        station_floor = SceneObject(
+            11,
+            "Floor",
+            "station floor",
+            [0.0, -15.01, 0.01],
+            [5.0, 1.0],
+        )
+        station = Station(
+            12,
+            "Solid",
+            "robot station",
+            [0.0, -15.01, 0.01],
+            children=[station_floor],
+        )
+
+        navigation_map = discover_navigation_map(
+            Supervisor([floor, station])
+        )
+
+        self.assertTrue(navigation_map["complete"], navigation_map["issues"])
+        self.assertEqual(
+            navigation_map["floorBounds"],
+            {
+                "min": {"x": -25.0, "y": -25.0},
+                "max": {"x": 25.0, "y": 25.0},
+            },
+        )
+
+    def test_navigation_map_includes_station_table_with_world_bounds(self):
+        floor = SceneObject(
+            10,
+            "Floor",
+            "warehouse floor",
+            [0.0, 0.0, 0.0],
+            [20.0, 20.0, 0.1],
+        )
+        station_table = SceneObject(
+            11,
+            "Table",
+            "station N0",
+            [2.0, -3.0, 0.0],
+            [2.0, 2.0, 0.74],
+            definition="N0",
+        )
+
+        navigation_map = discover_navigation_map(
+            Supervisor([floor, station_table])
+        )
+
+        self.assertTrue(navigation_map["complete"])
+        self.assertEqual(
+            navigation_map["floorBounds"],
+            {
+                "min": {"x": -10.0, "y": -10.0},
+                "max": {"x": 10.0, "y": 10.0},
+            },
+        )
+        self.assertEqual(len(navigation_map["obstacles"]), 1)
+        obstacle = navigation_map["obstacles"][0]
+        self.assertEqual(obstacle["def"], "N0")
+        self.assertTrue(obstacle["approachAllowed"])
+        self.assertEqual(
+            obstacle["bounds"],
+            {
+                "min": {"x": 1.0, "y": -4.0},
+                "max": {"x": 3.0, "y": -2.0},
+            },
+        )
+
+    def test_visual_only_beer_bottle_does_not_block_navigation_map(self):
+        floor = SceneObject(
+            20,
+            "Floor",
+            "warehouse floor",
+            [0.0, 0.0, 0.0],
+            [20.0, 20.0, 0.1],
+        )
+        bottle = SceneObject(
+            21,
+            "BeerBottle",
+            "beer bottle",
+            [0.0, 0.0, 0.74],
+        )
+
+        navigation_map = discover_navigation_map(Supervisor([floor, bottle]))
+
+        self.assertTrue(navigation_map["complete"])
+        self.assertEqual(navigation_map["obstacles"], [])
+
     def test_world_objects_are_discovered_without_duplicate_entries(self):
         supervisor = Supervisor(world_objects())
 
@@ -379,6 +479,22 @@ class ObjectDiscoveryTests(unittest.TestCase):
         self.assertEqual(record["geometry"]["bounds"]["min"]["z"], 0.0)
         self.assertEqual(record["geometry"]["bounds"]["max"]["z"], 0.3)
         self.assertAlmostEqual(record["geometry"]["bounds"]["min"]["x"], 0.9)
+
+        unsupported_geometry = GenericNode(107, "Mesh")
+        unsupported_shape = GenericNode(
+            106,
+            "Shape",
+            {"geometry": ValueField(unsupported_geometry)},
+        )
+        partial_solid = GenericNode(
+            105,
+            "Solid",
+            {"children": ValueField([shape, unsupported_shape])},
+        )
+        partial_record = discover_objects(Supervisor([partial_solid]))["objects"][0]
+
+        self.assertEqual(partial_record["geometry_status"], "UNKNOWN")
+        self.assertIsNone(partial_record["geometry"])
 
     def test_object_supervisor_is_excluded_from_robot_fleet_discovery(self):
         class RobotNode:

@@ -74,9 +74,21 @@ class Robot:
 class NodeManager:
     def __init__(self, target):
         self.target = target
+        self._snapshot_generation = 1
 
     def get_node(self, node_id):
         return self.target if node_id == "goal" else None
+
+    def plan_navigation_path(self, start, node_id):
+        target = self.get_node(node_id)
+        if target is None:
+            raise RuntimeError(f"Node not found: {node_id}")
+        goal = {"x": target["x"], "y": target["y"]}
+        return {
+            "path": [(start["x"], start["y"]), (goal["x"], goal["y"])],
+            "goal": goal,
+            "approach": False,
+        }
 
 
 class YoubotNavigationTests(unittest.TestCase):
@@ -128,9 +140,22 @@ class YoubotNavigationTests(unittest.TestCase):
     def test_arrival_and_stop_zero_all_wheel_motors(self):
         adapter, robot = self.create_adapter({"x": 0.05, "y": 0.0})
 
+        adapter.move_to_node("goal")
+        adapter.move_to_node("goal")
         result = adapter.move_to_node("goal")
 
         self.assertTrue(result["reached"])
+        self.assert_velocities(robot, [0.0, 0.0, 0.0, 0.0])
+
+    def test_arrival_is_latched_after_three_stable_pose_samples(self):
+        adapter, robot = self.create_adapter({"x": 0.05, "y": 0.0})
+
+        results = [adapter.move_to_node("goal") for _ in range(4)]
+
+        self.assertEqual(
+            [result["reached"] for result in results],
+            [False, False, True, True],
+        )
         self.assert_velocities(robot, [0.0, 0.0, 0.0, 0.0])
 
     def test_transport_is_unverified_by_default_and_simulation_only_when_enabled(self):

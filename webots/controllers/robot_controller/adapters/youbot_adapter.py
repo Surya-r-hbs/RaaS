@@ -3,6 +3,7 @@
 import math
 
 from adapters.base_robot import BaseRobot
+from navigation_planner import ProgressMonitor
 from config import (
     POSITION_TOLERANCE,
     WEBOTS_SIMULATION_MODE,
@@ -20,6 +21,14 @@ class _YoubotNavigation:
         self.robot = robot
         self.wheel_motors = wheel_motors
         self.node_manager = node_manager
+        self.target_node = None
+        self.path = []
+        self.path_index = 0
+        self.planned_snapshot = None
+        self.goal = None
+        self.arrival_samples = 0
+        self.arrived_node = None
+        self.progress_monitor = ProgressMonitor()
 
     def get_robot_position(self):
         try:
@@ -38,8 +47,15 @@ class _YoubotNavigation:
         except (AttributeError, RuntimeError):
             orientation = self.node_manager.get_robot_orientation()
         if not orientation or len(orientation) < 9:
-            return 0.0
-        return math.atan2(orientation[3], orientation[0])
+            raise RuntimeError("Robot orientation is unavailable or invalid")
+        forward_x = float(orientation[0])
+        forward_y = float(orientation[3])
+        if not math.isfinite(forward_x) or not math.isfinite(forward_y):
+            raise RuntimeError("Robot orientation is unavailable or invalid")
+        magnitude = math.hypot(forward_x, forward_y)
+        if not math.isfinite(magnitude) or magnitude <= 1e-9:
+            raise RuntimeError("Robot orientation is unavailable or invalid")
+        return math.atan2(forward_y / magnitude, forward_x / magnitude)
 
     def stop(self):
         for motor in self.wheel_motors:
@@ -61,15 +77,78 @@ class _YoubotNavigation:
             self.stop()
             return {"reached": False, "error": f"Node not found: {node_id}"}
 
-        position = self.get_robot_position()
-        dx = target["x"] - position["x"]
-        dy = target["y"] - position["y"]
-        distance = math.hypot(dx, dy)
-        if distance <= POSITION_TOLERANCE:
+        if node_id != self.target_node:
+            self.target_node = node_id
+            self.path = []
+            self.path_index = 0
+            self.planned_snapshot = None
+            self.goal = None
+            self.arrival_samples = 0
+            self.arrived_node = None
+            self.progress_monitor.reset()
+        if self.arrived_node == node_id:
             self.stop()
             return {"reached": True, "error": False}
 
-        speed = min(self.MAX_LINEAR_SPEED, distance * self.SPEED_GAIN)
+        position = self.get_robot_position()
+        generation = getattr(self.node_manager, "_snapshot_generation", None)
+        if not self.path or generation != self.planned_snapshot:
+            try:
+                plan = self.node_manager.plan_navigation_path(position, node_id)
+            except (KeyError, TypeError, ValueError, RuntimeError) as error:
+                self.stop()
+                return {"reached": False, "error": str(error)}
+            self.path = plan["path"]
+            self.path_index = min(1, len(self.path) - 1)
+            self.planned_snapshot = generation
+            self.goal = plan["goal"]
+            self.approach = plan["approach"]
+
+        dx = self.goal["x"] - position["x"]
+        dy = self.goal["y"] - position["y"]
+        distance = math.hypot(dx, dy)
+        if distance <= POSITION_TOLERANCE:
+            self.stop()
+            self.arrival_samples += 1
+            if self.arrival_samples >= 3:
+                self.arrived_node = node_id
+                return {"reached": True, "error": False}
+            return {"reached": False, "error": False}
+        self.arrival_samples = 0
+
+        while self.path_index < len(self.path) - 1:
+            waypoint = self.path[self.path_index]
+            if math.hypot(
+                waypoint[0] - position["x"],
+                waypoint[1] - position["y"],
+            ) > POSITION_TOLERANCE:
+                break
+            self.path_index += 1
+        waypoint = self.path[self.path_index]
+        dx = waypoint[0] - position["x"]
+        dy = waypoint[1] - position["y"]
+        waypoint_distance = math.hypot(dx, dy)
+        route_remaining = waypoint_distance + sum(
+            math.hypot(second[0] - first[0], second[1] - first[1])
+            for first, second in zip(
+                self.path[self.path_index:],
+                self.path[self.path_index + 1:],
+            )
+        )
+        if self.progress_monitor.stalled(route_remaining):
+            self.stop()
+            return {
+                "reached": False,
+                "error": "Navigation made insufficient progress; route is blocked",
+            }
+        if waypoint_distance <= POSITION_TOLERANCE:
+            dx = self.goal["x"] - position["x"]
+            dy = self.goal["y"] - position["y"]
+
+        speed = min(
+            self.MAX_LINEAR_SPEED,
+            waypoint_distance * self.SPEED_GAIN,
+        )
         world_vx = dx / distance * speed
         world_vy = dy / distance * speed
         heading = self.get_robot_heading()

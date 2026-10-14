@@ -111,6 +111,24 @@ class RobotController:
                 "transportCapability": self.adapter.transport_capability,
                 "runtimeMode": "WEBOTS_SIMULATION",
                 "simulationModeEnabled": WEBOTS_SIMULATION_MODE,
+                "navigationAwareness": {
+                    "status": "SUPERVISOR_SIMULATION_ONLY",
+                    "source": (
+                        "Webots Supervisor map and robot poses with "
+                        "R2025a model footprint profiles where needed"
+                    ),
+                    "physicalObstacleAvoidance": False,
+                    "localSensorResponse": (
+                        "FORWARD_SONAR_STOP_ONLY"
+                        if "".join(
+                            character
+                            for character in self.robot_type.lower()
+                            if character.isalnum()
+                        )
+                        == "pioneer3at"
+                        else "NOT_CONFIGURED"
+                    ),
+                },
                 "agentSessionId": self.agent_session_id,
             },
             world_snapshot_callback=self.handle_world_snapshot,

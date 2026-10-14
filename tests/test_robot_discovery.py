@@ -170,6 +170,42 @@ class RobotDiscoveryTests(unittest.TestCase):
             {"x": 1.0, "y": 2.0, "z": 0.1},
         )
 
+    def test_known_mobile_models_receive_r2025a_footprint_profiles(self):
+        robot_specs = (
+            ("E-puck", "E-puck", 0.05),
+            ("MiR100", "Mir100", 0.55),
+            ("Tiago", "Tiago", 0.30),
+            ("Youbot", "Youbot", 0.40),
+            ("Pioneer3at", "Pioneer3at", 0.32),
+        )
+        robots = [
+            Node(
+                index,
+                "PROTO",
+                "Solid",
+                name=name,
+                proto_type=proto_type,
+                controller="robot_controller",
+            )
+            for index, (name, proto_type, _radius) in enumerate(robot_specs)
+        ]
+
+        records = discover_world_snapshot(Supervisor(robots, robots[0]))[
+            "worldRobots"
+        ]
+
+        self.assertEqual(
+            [record["footprintRadius"] for record in records],
+            [radius for _name, _type, radius in robot_specs],
+        )
+        self.assertTrue(
+            all(
+                record["footprintStatus"] == "MODEL_PROFILE"
+                and record["footprintSource"] == "WEBOTS_R2025A_MODEL_PROFILE"
+                for record in records
+            )
+        )
+
     def test_missing_proto_model_does_not_abort_world_snapshot(self):
         robots = [
             Node(

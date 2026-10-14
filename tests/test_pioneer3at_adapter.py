@@ -87,9 +87,21 @@ class Robot:
 class NodeManager:
     def __init__(self, target):
         self.target = target
+        self._snapshot_generation = 1
 
     def get_node(self, node_id):
         return self.target if node_id == "goal" else None
+
+    def plan_navigation_path(self, start, node_id):
+        target = self.get_node(node_id)
+        if target is None:
+            raise RuntimeError(f"Node not found: {node_id}")
+        goal = {"x": target["x"], "y": target["y"]}
+        return {
+            "path": [(start["x"], start["y"]), (goal["x"], goal["y"])],
+            "goal": goal,
+            "approach": False,
+        }
 
 
 class Pioneer3atAdapterTests(unittest.TestCase):
@@ -147,8 +159,40 @@ class Pioneer3atAdapterTests(unittest.TestCase):
             position=(0.0, 0.0, 0.0),
         )
 
+        adapter.move_to_node("goal")
+        adapter.move_to_node("goal")
         self.assertTrue(adapter.move_to_node("goal")["reached"])
         self.assertIn("error", adapter.move_to_node("missing"))
+        self.assertEqual(
+            [motor.velocity for motor in robot.devices[:4]],
+            [0.0, 0.0, 0.0, 0.0],
+        )
+
+    def test_arrival_is_latched_and_keeps_all_wheels_stopped(self):
+        adapter, robot = self.create_adapter(
+            {"x": 0.05, "y": 0.0},
+            position=(0.0, 0.0, 0.0),
+        )
+
+        self.assertFalse(adapter.move_to_node("goal")["reached"])
+        self.assertFalse(adapter.move_to_node("goal")["reached"])
+        self.assertTrue(adapter.move_to_node("goal")["reached"])
+        robot.orientation[0] = -1.0
+
+        self.assertTrue(adapter.move_to_node("goal")["reached"])
+        self.assertEqual(
+            [motor.velocity for motor in robot.devices[:4]],
+            [0.0, 0.0, 0.0, 0.0],
+        )
+
+    def test_invalid_orientation_stops_without_endless_spin(self):
+        adapter, robot = self.create_adapter({"x": 0.0, "y": 2.0})
+        robot.orientation = [float("nan"), 0.0, 0.0, 0.0, float("nan"), 0.0, 0.0, 0.0, 1.0]
+
+        result = adapter.move_to_node("goal")
+
+        self.assertFalse(result["reached"])
+        self.assertIn("orientation", result["error"])
         self.assertEqual(
             [motor.velocity for motor in robot.devices[:4]],
             [0.0, 0.0, 0.0, 0.0],

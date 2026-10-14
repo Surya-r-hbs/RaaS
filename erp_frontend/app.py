@@ -1740,11 +1740,19 @@ def stop_robot(
 
         robot_entry["status"] = "STOPPING"
         robot_entry["lastUpdate"] = now_utc()
+        robot_entry["recoveryRequired"] = bool(current_order_id)
+        robot_entry["recoveryReason"] = (
+            "Operator requested a stop; recovery is required to resume"
+            if current_order_id
+            else "Robot was stopped by operator request"
+        )
+        robot_entry["available"] = False
 
         if current_order_id:
             order = orders.get(current_order_id)
             if order is not None:
                 order["status"] = "STOPPING"
+                order["recoveryReason"] = robot_entry["recoveryReason"]
 
     save_orders()
 

@@ -836,6 +836,7 @@ def handle_robot_status(status: dict) -> None:
             current_order=order_id,
             current_node=node_id,
             current_edge=edge_id,
+            error=status.get("error"),
         )
         publish_robot_registry()
         publish_state(robot_key)
