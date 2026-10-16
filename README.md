@@ -9,7 +9,7 @@ ERP browser
     |
     | HTTP
     v
-erp_frontend/app.py
+erp_frontend/app.py + routes/*
     |
     | MQTT VDA-5050 order
     v
@@ -95,6 +95,16 @@ The world assigns the `robot_controller` controller to the E-puck, MiR100,
 TIAGo, YouBot, and UR10e. The UR10e uses the Robotiq EPick vacuum gripper for
 physics-based pick-and-place. The controller program is
 `webots/controllers/robot_controller/robot_controller.py`.
+
+The ERP entry point keeps shared runtime state and MQTT integration in
+`erp_frontend/app.py`; its Flask endpoints are grouped into dashboard,
+order, robot, and transport/object blueprints under `erp_frontend/routes/`.
+Map path construction is isolated in `erp_frontend/order_planning.py`.
+The Fleet entry point delegates MQTT lifecycle and message routing to
+`fleet_control/mqtt_lifecycle.py` and `fleet_control/mqtt_messages.py`; payload
+and footprint checks live in `fleet_control/transport_compatibility.py`.
+Browser robot stop/recovery actions are separated into
+`erp_frontend/static/robot_actions.js`.
 
 ### UR10e pick-and-place
 

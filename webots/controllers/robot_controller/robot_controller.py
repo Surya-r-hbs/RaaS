@@ -46,6 +46,13 @@ from mqtt_handler import MQTTHandler
 from robot_discovery import discover_local_robot
 from adapters import create_robot_adapter
 from adapters.base_robot import UnsupportedRobotOperation
+from robot_commands import (
+    discard_queued_manipulation_commands as discard_commands,
+    handle_command as process_command,
+    handle_recovery_command as process_recovery_command,
+    handle_stop_command as process_stop_command,
+)
+from robot_status import publish_status as publish_robot_status
 
 
 def resolve_current_node(nodes, position, proximity_radius=0.75):
@@ -75,7 +82,7 @@ def resolve_current_node(nodes, position, proximity_radius=0.75):
 class RobotController:
 
     def __init__(self):
-
+        self.logger = logger
         log_event(logger, "SYSTEM", "robot.controller.initialized", "Robot controller initialized", source=__file__, robot_id=None)
 
         # --------------------
@@ -115,6 +122,7 @@ class RobotController:
         self.manipulation_commands = queue.Queue()
         self.agent_session_id = uuid.uuid4().hex
         self.status_sequence = 0
+        self.simulation_mode_enabled = WEBOTS_SIMULATION_MODE
 
         # --------------------
         # MQTT
@@ -131,7 +139,7 @@ class RobotController:
                 "availableDevices": self.adapter.available_devices,
                 "transportCapability": self.adapter.transport_capability,
                 "runtimeMode": "WEBOTS_SIMULATION",
-                "simulationModeEnabled": WEBOTS_SIMULATION_MODE,
+                "simulationModeEnabled": self.simulation_mode_enabled,
                 "navigationAwareness": {
                     "status": "SUPERVISOR_SIMULATION_ONLY",
                     "source": (
@@ -182,282 +190,31 @@ class RobotController:
     # --------------------
 
     def handle_command(self, command):
-
-        log_event(logger, "MQTT", "command.received", "Command received by robot controller", robot_id=self.robot_id, command_type=command.get("command") if isinstance(command, dict) else None, command=command if isinstance(command, dict) else None)
-
-        if not isinstance(command, dict):
-            log_event(logger, "MQTT", "command.invalid", "Robot command must be a JSON object", level="ERROR", robot_id=self.robot_id)
-            return
-
-        command_type = command.get("command")
-
-        if command_type == "PICK_AND_PLACE":
-            if "PICK_AND_PLACE" not in self.adapter.capabilities:
-                self.last_error = (
-                    f"Pick-and-place is not supported by {self.robot_type}"
-                )
-                self.publish_status()
-                return
-            self.manipulation_commands.put(command)
-            return
-
-        # --------------------
-        # STOP ROBOT
-        # --------------------
-
-        if command_type == "STOP_ROBOT":
-
-            self.handle_stop_command(command)
-
-            return
-
-        if command_type == "RECOVER_ROBOT":
-            self.handle_recovery_command(command)
-            return
-
-        # --------------------
-        # MOVE TO NODE
-        # --------------------
-
-        if command_type != "MOVE_TO_NODE":
-            log_event(logger, "MQTT", "command.unsupported", "Unsupported robot command", level="WARNING", robot_id=self.robot_id, command_type=command_type)
-            return
-
-        order_id = command.get("orderId")
-        node_id = command.get("nodeId")
-        edge_id = command.get("edgeId")
-
-        if not order_id:
-            log_event(logger, "MQTT", "command.missing_order", "Robot command missing orderId", level="WARNING", robot_id=self.robot_id)
-            return
-
-        if getattr(self.adapter, "task_active", False):
-            self.last_error = (
-                "Cannot start navigation while pick-and-place is active"
-            )
-            self.publish_status()
-            return
-
-        if not node_id:
-            log_event(logger, "MQTT", "command.missing_node", "Robot command missing nodeId", level="WARNING", robot_id=self.robot_id, order_id=order_id)
-            return
-
-        if not edge_id:
-            log_event(logger, "MQTT", "command.missing_edge", "Robot command missing edgeId", level="WARNING", robot_id=self.robot_id, order_id=order_id, node_id=node_id)
-            return
-
-        # --------------------
-        # CHECK NODE
-        # --------------------
-
-        if not self.node_manager.exists(node_id):
-            log_event(logger, "ROBOTS", "navigation.invalid_node", "Robot navigation target node is unknown", level="ERROR", robot_id=self.robot_id, order_id=order_id, node_id=node_id)
-            self.state.order_id = order_id
-            self.state.set_error()
-            self.publish_status()
-            return
-
-        if "NAVIGATION" not in self.adapter.capabilities:
-            self.last_error = (
-                f"Navigation is not supported by {self.robot_type}"
-            )
-            self.state.order_id = order_id
-            self.state.set_error()
-            self.publish_status()
-            return
-
-        # --------------------
-        # CHECK BUSY
-        # --------------------
-
-        if self.state.state == "EXECUTING":
-            log_event(logger, "ROBOTS", "navigation.busy", "Robot is already executing a navigation command", level="WARNING", robot_id=self.robot_id, target_node=self.state.target_node, order_id=self.state.order_id)
-            return
-
-        self.last_error = None
-
-        # --------------------
-        # START NAVIGATION
-        # --------------------
-
-        self.state.start_navigation(
-            order_id,
-            node_id,
-            edge_id,
-        )
-
-        log_event(logger, "ROBOTS", "navigation.started", "Navigation started", robot_id=self.robot_id, order_id=order_id, target_node=node_id, edge_id=edge_id)
-
-        self.publish_status()
+        return process_command(self, command)
 
     # --------------------
     # STOP COMMAND
     # --------------------
 
     def handle_stop_command(self, command):
-
-        command_robot_id = command.get("robotId")
-
-        # --------------------
-        # VALIDATE ROBOT
-        # --------------------
-
-        if command_robot_id and command_robot_id != self.robot_id:
-            log_event(logger, "ROBOTS", "stop.ignored", "Stop command ignored for another robot", level="WARNING", robot_id=self.robot_id, command_robot_id=command_robot_id)
-            return
-
-        # --------------------
-        # STOP MOTION
-        # --------------------
-
-        log_event(logger, "ROBOTS", "stop.requested", "Stop command received", robot_id=self.robot_id, current_state=self.state.state, order_id=self.state.order_id, current_node=self.state.current_node, target_node=self.state.target_node)
-
-        self._discard_queued_manipulation_commands()
-
-        # This directly stops the navigation/motors.
-        try:
-            self.adapter.stop()
-        except Exception as error:
-            self.last_error = f"Failed to stop robot safely: {error}"
-            self.state.set_error()
-            log_event(logger, "ROBOTS", "stop.failed", "Robot stop failed", level="ERROR", robot_id=self.robot_id, error=self.last_error)
-            self.publish_status()
-            return
-
-        # --------------------
-        # UPDATE STATE
-        # --------------------
-
-        self.state.stop()
-        log_event(logger, "ROBOTS", "stop.completed", "Robot stopped", robot_id=self.robot_id, order_id=self.state.order_id)
-
-        # --------------------
-        # NOTIFY FLEET + ERP
-        # --------------------
-
-        self.publish_status()
+        return process_stop_command(self, command)
 
     def handle_recovery_command(self, command):
-        command_robot_id = command.get("robotId")
-        order_id = command.get("orderId")
-
-        if command_robot_id and command_robot_id != self.robot_id:
-            return
-        if not order_id:
-            log_event(logger, "RECOVERY", "recovery.rejected", "Recovery rejected because orderId is missing", level="WARNING", robot_id=self.robot_id)
-            return
-        if self.state.order_id and self.state.order_id != order_id:
-            log_event(logger, "RECOVERY", "recovery.rejected", "Recovery rejected because active order does not match request", level="WARNING", robot_id=self.robot_id, active_order=self.state.order_id, requested_order=order_id)
-            return
-
-        self._discard_queued_manipulation_commands()
-        try:
-            self.adapter.stop()
-        except Exception as error:
-            self.last_error = f"Robot recovery stop failed: {error}"
-            self.state.set_error()
-            self.publish_status()
-            return
-
-        self.state.clear_order()
-        self.last_error = None
-        self.publish_status(recovered_order_id=order_id)
+        return process_recovery_command(self, command)
 
     def _discard_queued_manipulation_commands(self):
-        commands = getattr(self, "manipulation_commands", None)
-        if commands is None:
-            return
-        while True:
-            try:
-                commands.get_nowait()
-            except queue.Empty:
-                return
+        return discard_commands(self)
 
     # --------------------
     # STATUS
     # --------------------
 
     def publish_status(self, recovered_order_id=None):
-
-        self.status_sequence += 1
-
-        state = self.state.state
-        pose_error = None
-        try:
-            position = self.adapter.get_position()
-            orientation = self.adapter.get_orientation()
-        except RuntimeError as error:
-            position = None
-            orientation = None
-            pose_error = f"Webots world discovery is unavailable: {error}"
-        nearest_node = None
-        nearest_node_distance = None
-        if position is not None:
-            try:
-                nearest_node, nearest_node_distance = (
-                    self.node_manager.get_nearest_node(position)
-                )
-            except RuntimeError:
-                pass
-        current_node = (
-            nearest_node
-            if nearest_node_distance is not None
-            and nearest_node_distance <= 0.75
-            else None
+        return publish_robot_status(
+            self,
+            recovered_order_id,
+            simulation_mode_enabled=WEBOTS_SIMULATION_MODE,
         )
-
-        message = {
-            "robotId": self.robot_id,
-            "manufacturer": self.manufacturer,
-            "robotType": self.robot_type,
-            "capabilities": self.adapter.capability_names,
-            "availableDevices": self.adapter.available_devices,
-            "transportCapability": self.adapter.transport_capability,
-            "runtimeMode": "WEBOTS_SIMULATION",
-            "simulationModeEnabled": WEBOTS_SIMULATION_MODE,
-
-            # Fleet controller expects this.
-            "state": state,
-
-            # Compatibility/debugging.
-            "status": state,
-
-            # Mission correlation.
-            "orderId": self.state.order_id,
-            "currentNode": (
-                self.state.current_node
-                if state == "NODE_REACHED"
-                else current_node
-            ),
-            "nearestNode": nearest_node,
-            "nearestNodeDistance": nearest_node_distance,
-            "position": position,
-            "orientation": orientation,
-            "worldRobots": self.world_robots,
-            "error": self.last_error or pose_error,
-            "agentSessionId": self.agent_session_id,
-            "statusSequence": self.status_sequence,
-
-            "nodeId": (
-                self.state.current_node
-                if state in {"NODE_REACHED", "STOPPED"}
-                else self.state.target_node
-            ),
-
-            "edgeId": (
-                self.state.current_edge
-                if state in {"NODE_REACHED", "STOPPED"}
-                else self.state.target_edge
-            ),
-        }
-        if recovered_order_id:
-            message["recoveredOrderId"] = recovered_order_id
-        manipulation = getattr(self.adapter, "manipulation_status", None)
-        if manipulation is not None:
-            message["manipulation"] = manipulation
-
-        log_event(logger, "ROBOTS", "status.published", "Robot status published", robot_id=self.robot_id, state=state, order_id=self.state.order_id, current_node=current_node, target_node=self.state.target_node, edge_id=self.state.target_edge)
-        self.mqtt.publish_status(message)
 
    # --------------------
 # UPDATE

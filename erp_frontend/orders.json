@@ -88,12 +88,52 @@
     ],
     "erpPriority": "NORMAL",
     "erpStatus": "DISPATCHED",
-    "status": "RECOVERY_REQUIRED",
+    "status": "INTERRUPTED",
     "erpPlanningMode": "destination",
     "erpRoute": [],
     "erpDestination": "N4",
     "dispatchError": null,
     "_lastVdaHeaderId": 1,
-    "recoveryReason": "No safe approach pose is reachable for station table"
+    "recoveryReason": "A fresh robot report confirmed no active assignment; the previous mission was not resumed"
+  },
+  {
+    "headerId": 0,
+    "timestamp": "2026-10-16T04:52:45.564Z",
+    "version": "3.0.0",
+    "manufacturer": "DemoRobot",
+    "serialNumber": "Pioneer3at",
+    "orderId": "order0001",
+    "orderUpdateId": 0,
+    "nodes": [
+      {
+        "nodeId": "N2",
+        "sequenceId": 0,
+        "released": true,
+        "actions": []
+      },
+      {
+        "nodeId": "N3",
+        "sequenceId": 2,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "E1",
+        "sequenceId": 1,
+        "released": true,
+        "actions": []
+      }
+    ],
+    "erpPriority": "NORMAL",
+    "erpStatus": "DISPATCHED",
+    "status": "RECOVERY_REQUIRED",
+    "erpPlanningMode": "destination",
+    "erpRoute": [],
+    "erpDestination": "N3",
+    "dispatchError": null,
+    "_lastVdaHeaderId": 1,
+    "recoveryReason": "Safe navigation is unavailable: other robot poses are stale"
   }
 ]
