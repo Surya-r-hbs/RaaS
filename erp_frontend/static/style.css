@@ -199,6 +199,18 @@ header p {
   font-size: 17px;
 }
 
+.log-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.log-filters input,
+.log-filters select {
+  width: 100%;
+}
+
 .panel-head button:not(.primary) {
   border: 0;
   background: transparent;

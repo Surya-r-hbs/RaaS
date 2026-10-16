@@ -179,6 +179,67 @@ function robotRecoveryButton(robot) {
 // RENDER
 // --------------------
 
+function bindLogFilters() {
+  const search = document.getElementById("logs-search");
+  const category = document.getElementById("logs-category");
+  const severity = document.getElementById("logs-severity");
+
+  if (!search || !category || !severity) {
+    return;
+  }
+
+  search.oninput = renderLogs;
+  category.onchange = renderLogs;
+  severity.onchange = renderLogs;
+}
+
+function renderLogs() {
+  const list = document.getElementById("logs-list");
+  if (!list) {
+    return;
+  }
+
+  const logs = Array.isArray(data?.logs) ? data.logs : [];
+  const search = (document.getElementById("logs-search")?.value || "").trim().toLowerCase();
+  const category = (document.getElementById("logs-category")?.value || "").trim().toUpperCase();
+  const severity = (document.getElementById("logs-severity")?.value || "").trim().toUpperCase();
+
+  const filteredLogs = logs.filter(log => {
+    const entryCategory = (log.category || "ERP").toUpperCase();
+    const entrySeverity = (log.severity || "INFO").toUpperCase();
+    const haystack = [
+      entryCategory,
+      log.categoryLabel || "",
+      log.source || "",
+      log.message || "",
+      log.type || "",
+    ].join(" ").toLowerCase();
+
+    if (category && entryCategory !== category) {
+      return false;
+    }
+    if (severity && entrySeverity !== severity) {
+      return false;
+    }
+    if (search && !haystack.includes(search)) {
+      return false;
+    }
+    return true;
+  });
+
+  list.innerHTML = filteredLogs
+    .map(log => `
+      <div class="event">
+        <strong>${escapeHtml(log.categoryLabel || log.category || "ERP")}</strong>
+        <span>${escapeHtml(log.severity || "INFO")}</span>
+        <span>${escapeHtml(log.timestamp || "-")}</span>
+        <div>${escapeHtml(log.message || "No message")}</div>
+        ${log.source ? `<div><small>Source: ${escapeHtml(log.source)}</small></div>` : ""}
+      </div>
+    `)
+    .join("") || "<p>No logs available.</p>";
+}
+
 function render() {
 
   if (!data) {
@@ -186,6 +247,8 @@ function render() {
     return;
   }
 
+  bindLogFilters();
+  renderLogs();
   populateRobotSelector();
   updateLocationPreview();
 
@@ -254,8 +317,8 @@ function render() {
           }
 
           <div>
-            Node:
-            ${robot.currentNode || "-"}
+            Location:
+            ${escapeHtml(robotLocationLabel(robot))}
           </div>
 
           <div>
@@ -457,9 +520,9 @@ function render() {
           </p>
 
           <p>
-            Current node:
+            Current location:
             <b>
-              ${robot.currentNode || "-"}
+              ${escapeHtml(robotLocationLabel(robot))}
             </b>
           </p>
 
@@ -713,6 +776,7 @@ function showPage(page) {
     "objects",
     "transport",
     "missions",
+    "logs",
     "events",
   ];
 
@@ -745,6 +809,9 @@ function showPage(page) {
 
     missions:
       "Mission Control",
+
+    logs:
+      "Operational Logs",
 
     events:
       "Live System Events",
@@ -788,18 +855,37 @@ function updateLocationPreview() {
   }
 
   const robot = selectedRobot();
-  if (!robot || !robot.currentNode || !robot.position) {
+  if (!robot || !robot.position) {
     preview.textContent =
-      "Robot location: waiting for live telemetry...";
+      "Current location: waiting for live telemetry...";
     return;
   }
 
-  const position = robot.position;
   preview.textContent =
-    `Live start: ${robot.currentNode} `
-    + `(X ${Number(position.x).toFixed(2)}, `
-    + `Y ${Number(position.y).toFixed(2)}). `
+    `Current location: ${robotLocationLabel(robot)}. `
     + `Updated ${robot.lastUpdate || "just now"}`;
+}
+
+function robotLocationLabel(robot) {
+  const position = robot?.position;
+  if (
+    !position
+    || !Number.isFinite(Number(position.x))
+    || !Number.isFinite(Number(position.y))
+  ) {
+    return "Waiting for live telemetry";
+  }
+
+  const location = robot.currentNode || "Off graph";
+  const nearestNode = !robot.currentNode && robot.nearestNode
+    ? `; nearest route node ${robot.nearestNode}`
+      + (Number.isFinite(Number(robot.nearestNodeDistance))
+        ? ` (${Number(robot.nearestNodeDistance).toFixed(1)} m away)`
+        : "")
+    : "";
+  return `${location}${nearestNode} `
+    + `(X ${Number(position.x).toFixed(2)}, `
+    + `Y ${Number(position.y).toFixed(2)})`;
 }
 
 function updateOrderFields() {

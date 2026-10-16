@@ -1,3 +1,14 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger, log_event
+
+logger = get_logger("raas.robot_state")
+
 # --------------------
 # ROBOT STATE
 # --------------------
@@ -80,13 +91,4 @@ class RobotState:
     # --------------------
 
     def print_state(self):
-
-        print("--------------------")
-        print("ROBOT STATE")
-        print(f"State        : {self.state}")
-        print(f"Order ID     : {self.order_id}")
-        print(f"Current node : {self.current_node}")
-        print(f"Current edge : {self.current_edge}")
-        print(f"Target node  : {self.target_node}")
-        print(f"Target edge  : {self.target_edge}")
-        print("--------------------")
+        log_event(logger, "ROBOTS", "robot_state.snapshot", "Robot state snapshot", state=self.state, order_id=self.order_id, current_node=self.current_node, current_edge=self.current_edge, target_node=self.target_node, target_edge=self.target_edge)

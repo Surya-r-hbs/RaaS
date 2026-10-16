@@ -44,6 +44,10 @@
       Missions
     </button>
 
+    <button class="nav" onclick="showPage('logs')">
+      Logs
+    </button>
+
     <button class="nav" onclick="showPage('events')">
       Events
     </button>
@@ -315,6 +319,44 @@
     </div>
 
     <div id="missions-list"></div>
+
+  </div>
+
+</section>
+
+<section id="logs" class="page">
+
+  <div class="panel">
+
+    <div class="panel-head">
+      <div>
+        <h2>Operational Logs</h2>
+        <p>Application, MQTT, robot, order, object, and ERP diagnostics</p>
+      </div>
+    </div>
+
+    <div class="log-filters">
+      <input id="logs-search" type="search" placeholder="Search logs by category, source, or message">
+      <select id="logs-category">
+        <option value="">All categories</option>
+        <option value="SYSTEM">System &amp; Simulation</option>
+        <option value="MQTT">MQTT &amp; Messaging</option>
+        <option value="ROBOTS">Robots &amp; Navigation</option>
+        <option value="ORDERS">Orders &amp; Tasks</option>
+        <option value="OBJECTS">Objects &amp; Inventory</option>
+        <option value="ERP">ERP &amp; API</option>
+      </select>
+      <select id="logs-severity">
+        <option value="">All severities</option>
+        <option value="DEBUG">DEBUG</option>
+        <option value="INFO">INFO</option>
+        <option value="WARNING">WARNING</option>
+        <option value="ERROR">ERROR</option>
+        <option value="CRITICAL">CRITICAL</option>
+      </select>
+    </div>
+
+    <div id="logs-list"></div>
 
   </div>
 

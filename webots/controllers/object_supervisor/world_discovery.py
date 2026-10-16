@@ -13,6 +13,13 @@ from object_discovery import (
 NAVIGATION_DEF = re.compile(r"N\d+")
 SUPERVISOR_CONTROLLER = "object_supervisor"
 ROBOT_CONTROLLER = "robot_controller"
+KNOWN_MOBILE_ROBOT_TYPES = (
+    "E-puck",
+    "MiR100",
+    "Pioneer3at",
+    "Tiago",
+    "Youbot",
+)
 
 
 def _field(node, name):
@@ -111,6 +118,21 @@ def discover_world_snapshot(supervisor, manufacturer="DemoRobot"):
                     robot_type = ""
                 if robot_type == "Robot":
                     robot_type = ""
+                if not robot_type:
+                    normalized_robot_id = re.sub(
+                        r"[^a-z0-9]",
+                        "",
+                        robot_id.lower(),
+                    )
+                    robot_type = next(
+                        (
+                            known_type
+                            for known_type in KNOWN_MOBILE_ROBOT_TYPES
+                            if normalized_robot_id
+                            == re.sub(r"[^a-z0-9]", "", known_type.lower())
+                        ),
+                        "",
+                    )
                 custom_data = _field_string(node, "customData")
                 custom_station = next(
                     (

@@ -11,12 +11,21 @@ the internal robot command topic, and publishes VDA-5050 state.
 # --------------------
 
 import json
+import os
+import sys
 import threading
 import time
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger, log_event
 
 from config import (
     BROKER,
@@ -97,20 +106,16 @@ def now_utc() -> str:
 # LOGGING
 # --------------------
 
-def log(message: str) -> None:
+logger = get_logger("raas.fleet_controller")
 
-    print(
-        message,
-        flush=True,
-    )
+
+def log(message: str) -> None:
+    logger.info(message)
 
 
 def separator() -> None:
-
-    print(
-        "-" * 60,
-        flush=True,
-    )
+    # Deliberately quiet in normal mode; keep operational messages in structured logs.
+    return None
 
 
 # --------------------
@@ -201,33 +206,10 @@ def publish_state(robot_key: tuple[str, str]) -> None:
         qos=0,
     )
 
-    separator()
-
-    log("PUBLISHING VDA-5050 STATE")
-
-    separator()
-
-    log(f"Topic        : {state_topic_name}")
-    log(f"Mission      : {mission_state}")
-    log(f"Order ID     : {payload['orderId']}")
-    log(f"Last node    : {payload['lastNodeId']}")
-    log(f"Node seq     : {payload['lastNodeSequenceId']}")
-    log(f"Current edge : {current_edge_id}")
-    log(f"Edge seq     : {current_edge_sequence_id}")
-    log(f"Payload      : {json.dumps(payload)}")
-
-    separator()
-
     if result.rc == mqtt.MQTT_ERR_SUCCESS:
-
-        log("VDA-5050 STATE PUBLISHED")
-
+        log_event(logger, "MQTT", "vda_state.published", "VDA-5050 state published", topic=state_topic_name, order_id=payload["orderId"], mission_state=mission_state, last_node_id=payload["lastNodeId"], current_edge_id=current_edge_id)
     else:
-
-        log(
-            f"ERROR: Failed to publish VDA-5050 state: "
-            f"{result.rc}"
-        )
+        log_event(logger, "MQTT", "vda_state.publish_failed", "Failed to publish VDA-5050 state", level="ERROR", topic=state_topic_name, order_id=payload["orderId"], rc=result.rc)
 
 
 # --------------------
@@ -256,20 +238,7 @@ def send_robot_command(
 
     payload = json.dumps(command)
 
-    separator()
-
-    log("SENDING ROBOT COMMAND")
-
-    separator()
-
-    log(f"Topic      : {command_topic_name}")
-    log(f"Order ID   : {order_id}")
-    log(f"Start node : {start_node['nodeId']}")
-    log(f"Target     : {target_node['nodeId']}")
-    log(f"Edge       : {edge['edgeId']}")
-    log(f"Payload    : {payload}")
-
-    separator()
+    log_event(logger, "MQTT", "robot_command.publish", "Sending robot command", topic=command_topic_name, order_id=order_id, start_node=start_node["nodeId"], target_node=target_node["nodeId"], edge_id=edge["edgeId"])
 
     result = mqtt_client.publish(
         command_topic_name,
@@ -278,17 +247,10 @@ def send_robot_command(
     )
 
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
-
-        log(
-            f"ERROR: Failed to send robot command: "
-            f"{result.rc}"
-        )
-
+        log_event(logger, "MQTT", "robot_command.publish_failed", "Failed to send robot command", level="ERROR", topic=command_topic_name, order_id=order_id, rc=result.rc)
         return False
 
-    log(
-        "ROBOT COMMAND SENT SUCCESSFULLY"
-    )
+    log_event(logger, "MQTT", "robot_command.sent", "Robot command sent", topic=command_topic_name, order_id=order_id)
 
     return True
 

@@ -855,6 +855,70 @@ class OrderLifecycleTests(unittest.TestCase):
         self.assertFalse(robot["available"])
         self.assertEqual(robot["availabilityReason"], "Robot status is stale")
 
+    def test_robot_registry_preserves_nearest_node_telemetry(self):
+        registry = RobotRegistry()
+        robot = make_robot(
+            currentNode=None,
+            nearestNode="N2",
+            nearestNodeDistance=17.2,
+            position={"x": -2.07, "y": -15.05, "z": 0.1},
+            statusSequence=1,
+        )
+
+        self.assertTrue(registry.update_agent(robot))
+        registered_robot = registry.get("DemoRobot", "youBot")
+
+        self.assertEqual(registered_robot["nearestNode"], "N2")
+        self.assertEqual(registered_robot["nearestNodeDistance"], 17.2)
+
+    def test_off_graph_robot_can_create_order_from_nearest_live_node(self):
+        erp.robots[("DemoRobot", "youBot")] = make_robot(
+            currentNode=None,
+            nearestNode="N0",
+            nearestNodeDistance=17.5,
+            position={"x": -2.07, "y": -15.05, "z": 0.1},
+        )
+
+        response = self.client.post(
+            "/api/orders",
+            json={
+                "orderId": "off-graph-order",
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "planningMode": "destination",
+                "destination": "N5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201, response.get_json())
+        order = response.get_json()
+        self.assertEqual(order["nodes"][0]["nodeId"], "N0")
+        self.assertEqual(order["nodes"][-1]["nodeId"], "N5")
+
+    def test_off_graph_robot_can_order_its_nearest_node_as_destination(self):
+        erp.robots[("DemoRobot", "youBot")] = make_robot(
+            currentNode=None,
+            nearestNode="N0",
+            nearestNodeDistance=17.5,
+            position={"x": -2.07, "y": -15.05, "z": 0.1},
+        )
+
+        response = self.client.post(
+            "/api/orders",
+            json={
+                "orderId": "off-graph-nearest-node",
+                "robotId": "youBot",
+                "manufacturer": "DemoRobot",
+                "planningMode": "destination",
+                "destination": "N0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201, response.get_json())
+        order = response.get_json()
+        self.assertGreaterEqual(len(order["nodes"]), 2)
+        self.assertEqual(order["nodes"][-1]["nodeId"], "N0")
+
     def test_robot_state_transition_contract_remains_unchanged(self):
         controller_dir = str(
             PROJECT_ROOT / "webots/controllers/robot_controller"

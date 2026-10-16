@@ -30,6 +30,8 @@ class RobotRegistry:
                 "present": True,
                 "agentOnline": False,
                 "currentNode": None,
+                "nearestNode": None,
+                "nearestNodeDistance": None,
                 "position": None,
                 "orientation": None,
                 "currentEdge": None,
@@ -182,6 +184,9 @@ class RobotRegistry:
                 entry["lastUpdate"] = self._timestamp()
                 if "position" in payload:
                     entry["position"] = payload["position"]
+                for field in ("nearestNode", "nearestNodeDistance"):
+                    if field in payload:
+                        entry[field] = payload[field]
                 if payload.get("currentNode") or payload.get("nodeId"):
                     entry["currentNode"] = (
                         payload.get("currentNode") or payload["nodeId"]
@@ -207,6 +212,8 @@ class RobotRegistry:
                 "robotType",
                 "stationId",
                 "currentNode",
+                "nearestNode",
+                "nearestNodeDistance",
                 "position",
                 "orientation",
                 "currentEdge",

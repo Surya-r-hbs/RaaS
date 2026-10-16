@@ -1,12 +1,19 @@
+import math
 import os
 import queue
+import sys
 import time
 import uuid
 
-print("--------------------")
-print("ROBOT CONTROLLER FILE")
-print(os.path.abspath(__file__))
-print("--------------------")
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger, log_event
+
+logger = get_logger("raas.robot_controller")
 
 # --------------------
 # ROBOT CONTROLLER
@@ -41,14 +48,35 @@ from adapters import create_robot_adapter
 from adapters.base_robot import UnsupportedRobotOperation
 
 
+def resolve_current_node(nodes, position, proximity_radius=0.75):
+    """Return the node ID only when the robot is physically close to it."""
+    if not nodes or position is None:
+        return None
+
+    best_node_id = None
+    best_distance = None
+    for node_id, node_position in nodes.items():
+        if not isinstance(node_position, dict):
+            continue
+        dx = float(node_position.get("x", 0.0)) - float(position.get("x", 0.0))
+        dy = float(node_position.get("y", 0.0)) - float(position.get("y", 0.0))
+        distance = math.hypot(dx, dy)
+        if best_distance is None or distance < best_distance:
+            best_distance = distance
+            best_node_id = node_id
+
+    if best_node_id is None or best_distance is None:
+        return None
+    if best_distance > proximity_radius:
+        return None
+    return best_node_id
+
+
 class RobotController:
 
     def __init__(self):
 
-        print("--------------------")
-        print("MODULAR CONTROLLER VERSION: 2026-10-06")
-        print(f"CONTROLLER FILE: {__file__}")
-        print("--------------------")
+        log_event(logger, "SYSTEM", "robot.controller.initialized", "Robot controller initialized", source=__file__, robot_id=None)
 
         # --------------------
         # WEBOTS
@@ -66,7 +94,6 @@ class RobotController:
         # --------------------
 
         self.node_manager = NodeManager(self.robot_id)
-        self.node_manager.print_nodes()
 
         # --------------------
         # ROBOT ADAPTER
@@ -77,13 +104,7 @@ class RobotController:
             self.robot,
             self.node_manager,
         )
-        print("--------------------")
-        print("ROBOT ADAPTER READY")
-        print(f"Robot type       : {self.robot_type}")
-        print(f"Adapter          : {type(self.adapter).__name__}")
-        print(f"Devices          : {self.adapter.available_devices}")
-        print(f"Capabilities     : {self.adapter.capability_names}")
-        print("--------------------")
+        log_event(logger, "ROBOTS", "robot.adapter_ready", "Robot adapter ready", robot_id=self.robot_id, robot_type=self.robot_type, adapter=type(self.adapter).__name__, devices=self.adapter.available_devices, capabilities=self.adapter.capability_names)
 
         # --------------------
         # ROBOT STATE
@@ -138,11 +159,7 @@ class RobotController:
         # STARTUP
         # --------------------
 
-        print("--------------------")
-        print("ROBOT CONTROLLER STARTED")
-        print(f"Robot       : {self.robot_id}")
-        print(f"Manufacturer: {self.manufacturer}")
-        print("--------------------")
+        log_event(logger, "SYSTEM", "robot.started", "Robot controller started", robot_id=self.robot_id, manufacturer=self.manufacturer, robot_type=self.robot_type)
 
         self.mqtt.connect()
 
@@ -150,7 +167,7 @@ class RobotController:
         try:
             self.node_manager.update_world_snapshot(payload)
         except (TypeError, ValueError, KeyError, RuntimeError) as error:
-            print(f"Rejected invalid Webots world snapshot: {error}")
+            log_event(logger, "SIMULATION", "world_snapshot.invalid", "Rejected invalid Webots world snapshot", level="WARNING", robot_id=self.robot_id, error=str(error))
             return
         self.world_robots = payload["worldRobots"]
         self.mqtt.world_robots = self.world_robots
@@ -158,10 +175,7 @@ class RobotController:
             record.get("robotId") == self.robot_id
             for record in self.world_robots
         ):
-            print(
-                f"World snapshot does not contain this robot "
-                f"({self.robot_id}); pose-dependent tasks will be rejected"
-            )
+            log_event(logger, "SIMULATION", "world_snapshot.missing_robot", "World snapshot missing this robot", level="WARNING", robot_id=self.robot_id)
 
     # --------------------
     # COMMAND HANDLER
@@ -169,13 +183,10 @@ class RobotController:
 
     def handle_command(self, command):
 
-        print("--------------------")
-        print("COMMAND RECEIVED")
-        print(command)
-        print("--------------------")
+        log_event(logger, "MQTT", "command.received", "Command received by robot controller", robot_id=self.robot_id, command_type=command.get("command") if isinstance(command, dict) else None, command=command if isinstance(command, dict) else None)
 
         if not isinstance(command, dict):
-            print("ERROR: Robot command must be a JSON object")
+            log_event(logger, "MQTT", "command.invalid", "Robot command must be a JSON object", level="ERROR", robot_id=self.robot_id)
             return
 
         command_type = command.get("command")
@@ -209,9 +220,7 @@ class RobotController:
         # --------------------
 
         if command_type != "MOVE_TO_NODE":
-
-            print(f"ERROR: Unsupported command: {command_type}")
-
+            log_event(logger, "MQTT", "command.unsupported", "Unsupported robot command", level="WARNING", robot_id=self.robot_id, command_type=command_type)
             return
 
         order_id = command.get("orderId")
@@ -219,9 +228,7 @@ class RobotController:
         edge_id = command.get("edgeId")
 
         if not order_id:
-
-            print("ERROR: Missing orderId")
-
+            log_event(logger, "MQTT", "command.missing_order", "Robot command missing orderId", level="WARNING", robot_id=self.robot_id)
             return
 
         if getattr(self.adapter, "task_active", False):
@@ -232,15 +239,11 @@ class RobotController:
             return
 
         if not node_id:
-
-            print("ERROR: Missing nodeId")
-
+            log_event(logger, "MQTT", "command.missing_node", "Robot command missing nodeId", level="WARNING", robot_id=self.robot_id, order_id=order_id)
             return
 
         if not edge_id:
-
-            print("ERROR: Missing edgeId")
-
+            log_event(logger, "MQTT", "command.missing_edge", "Robot command missing edgeId", level="WARNING", robot_id=self.robot_id, order_id=order_id, node_id=node_id)
             return
 
         # --------------------
@@ -248,17 +251,10 @@ class RobotController:
         # --------------------
 
         if not self.node_manager.exists(node_id):
-
-            print("--------------------")
-            print("ERROR: UNKNOWN NODE")
-            print(f"Node: {node_id}")
-            print("--------------------")
-
+            log_event(logger, "ROBOTS", "navigation.invalid_node", "Robot navigation target node is unknown", level="ERROR", robot_id=self.robot_id, order_id=order_id, node_id=node_id)
             self.state.order_id = order_id
             self.state.set_error()
-
             self.publish_status()
-
             return
 
         if "NAVIGATION" not in self.adapter.capabilities:
@@ -275,12 +271,7 @@ class RobotController:
         # --------------------
 
         if self.state.state == "EXECUTING":
-
-            print("--------------------")
-            print("ERROR: ROBOT BUSY")
-            print(f"Current target: {self.state.target_node}")
-            print("--------------------")
-
+            log_event(logger, "ROBOTS", "navigation.busy", "Robot is already executing a navigation command", level="WARNING", robot_id=self.robot_id, target_node=self.state.target_node, order_id=self.state.order_id)
             return
 
         self.last_error = None
@@ -295,12 +286,7 @@ class RobotController:
             edge_id,
         )
 
-        print("--------------------")
-        print("STARTING NAVIGATION")
-        print(f"Order ID   : {order_id}")
-        print(f"Target node: {node_id}")
-        print(f"Target edge: {edge_id}")
-        print("--------------------")
+        log_event(logger, "ROBOTS", "navigation.started", "Navigation started", robot_id=self.robot_id, order_id=order_id, target_node=node_id, edge_id=edge_id)
 
         self.publish_status()
 
@@ -317,29 +303,14 @@ class RobotController:
         # --------------------
 
         if command_robot_id and command_robot_id != self.robot_id:
-
-            print("--------------------")
-            print("STOP COMMAND IGNORED")
-            print(f"Command robot : {command_robot_id}")
-            print(f"This robot    : {self.robot_id}")
-            print("--------------------")
-
+            log_event(logger, "ROBOTS", "stop.ignored", "Stop command ignored for another robot", level="WARNING", robot_id=self.robot_id, command_robot_id=command_robot_id)
             return
 
         # --------------------
         # STOP MOTION
         # --------------------
 
-        print("--------------------")
-        print("STOP ROBOT COMMAND")
-        print("--------------------")
-
-        print(f"Current state : {self.state.state}")
-        print(f"Order ID      : {self.state.order_id}")
-        print(f"Current node  : {self.state.current_node}")
-        print(f"Current edge  : {self.state.current_edge}")
-        print(f"Target node   : {self.state.target_node}")
-        print(f"Target edge   : {self.state.target_edge}")
+        log_event(logger, "ROBOTS", "stop.requested", "Stop command received", robot_id=self.robot_id, current_state=self.state.state, order_id=self.state.order_id, current_node=self.state.current_node, target_node=self.state.target_node)
 
         self._discard_queued_manipulation_commands()
 
@@ -349,7 +320,7 @@ class RobotController:
         except Exception as error:
             self.last_error = f"Failed to stop robot safely: {error}"
             self.state.set_error()
-            print(self.last_error)
+            log_event(logger, "ROBOTS", "stop.failed", "Robot stop failed", level="ERROR", robot_id=self.robot_id, error=self.last_error)
             self.publish_status()
             return
 
@@ -358,10 +329,7 @@ class RobotController:
         # --------------------
 
         self.state.stop()
-
-        print("--------------------")
-        print("ROBOT STOPPED")
-        print("--------------------")
+        log_event(logger, "ROBOTS", "stop.completed", "Robot stopped", robot_id=self.robot_id, order_id=self.state.order_id)
 
         # --------------------
         # NOTIFY FLEET + ERP
@@ -376,13 +344,10 @@ class RobotController:
         if command_robot_id and command_robot_id != self.robot_id:
             return
         if not order_id:
-            print("RECOVERY REJECTED: Missing orderId")
+            log_event(logger, "RECOVERY", "recovery.rejected", "Recovery rejected because orderId is missing", level="WARNING", robot_id=self.robot_id)
             return
         if self.state.order_id and self.state.order_id != order_id:
-            print(
-                "RECOVERY REJECTED: Active order does not match "
-                f"requested order {order_id}"
-            )
+            log_event(logger, "RECOVERY", "recovery.rejected", "Recovery rejected because active order does not match request", level="WARNING", robot_id=self.robot_id, active_order=self.state.order_id, requested_order=order_id)
             return
 
         self._discard_queued_manipulation_commands()
@@ -425,14 +390,21 @@ class RobotController:
             position = None
             orientation = None
             pose_error = f"Webots world discovery is unavailable: {error}"
-        nodes = self.node_manager.get_nodes()
-        current_node = min(
-            nodes,
-            key=lambda node_id: (
-                (nodes[node_id]["x"] - position["x"]) ** 2
-                + (nodes[node_id]["y"] - position["y"]) ** 2
-            ),
-        ) if nodes and position is not None else None
+        nearest_node = None
+        nearest_node_distance = None
+        if position is not None:
+            try:
+                nearest_node, nearest_node_distance = (
+                    self.node_manager.get_nearest_node(position)
+                )
+            except RuntimeError:
+                pass
+        current_node = (
+            nearest_node
+            if nearest_node_distance is not None
+            and nearest_node_distance <= 0.75
+            else None
+        )
 
         message = {
             "robotId": self.robot_id,
@@ -457,6 +429,8 @@ class RobotController:
                 if state == "NODE_REACHED"
                 else current_node
             ),
+            "nearestNode": nearest_node,
+            "nearestNodeDistance": nearest_node_distance,
             "position": position,
             "orientation": orientation,
             "worldRobots": self.world_robots,
@@ -482,11 +456,7 @@ class RobotController:
         if manipulation is not None:
             message["manipulation"] = manipulation
 
-        print("--------------------")
-        print("ROBOT STATUS")
-        print(message)
-        print("--------------------")
-
+        log_event(logger, "ROBOTS", "status.published", "Robot status published", robot_id=self.robot_id, state=state, order_id=self.state.order_id, current_node=current_node, target_node=self.state.target_node, edge_id=self.state.target_edge)
         self.mqtt.publish_status(message)
 
    # --------------------
@@ -561,19 +531,11 @@ class RobotController:
         elif isinstance(result, dict):
 
             if result.get("error"):
-
-                print("--------------------")
-                print("NAVIGATION ERROR")
-                print(result["error"])
-                print("--------------------")
-
                 self.adapter.stop()
-
                 self.state.set_error()
                 self.last_error = str(result["error"])
-
+                log_event(logger, "NAVIGATION", "navigation.error", "Navigation returned an error", level="ERROR", robot_id=self.robot_id, error=self.last_error)
                 self.publish_status()
-
                 return
 
             if result.get("obstacleDetected"):
@@ -599,20 +561,11 @@ class RobotController:
             reached = result.get("reached", False)
 
         else:
-
-            print("--------------------")
-            print("NAVIGATION ERROR")
-            print("Unexpected navigation result:")
-            print(result)
-            print("--------------------")
-
             self.adapter.stop()
-
             self.state.set_error()
             self.last_error = f"Unexpected navigation result: {result!r}"
-
+            log_event(logger, "NAVIGATION", "navigation.unexpected_result", "Navigation returned an unexpected result", level="ERROR", robot_id=self.robot_id, result=str(result))
             self.publish_status()
-
             return
 
         # --------------------
@@ -620,17 +573,9 @@ class RobotController:
         # --------------------
 
         if reached:
-
             self.adapter.stop()
-
-            print("--------------------")
-            print("NODE REACHED")
-            print(f"Node: {target_node}")
-            print(f"Edge: {self.state.target_edge}")
-            print("--------------------")
-
+            log_event(logger, "ROBOTS", "navigation.node_reached", "Navigation target node reached", robot_id=self.robot_id, node_id=target_node, edge_id=self.state.target_edge)
             self.state.node_reached()
-
             self.publish_status()
 
     # --------------------

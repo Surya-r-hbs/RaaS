@@ -1,9 +1,18 @@
 import math
 import re
+import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger
 from navigation_planner import plan_route
+
+logger = get_logger("raas.node_manager")
 
 
 # --------------------
@@ -12,6 +21,7 @@ from navigation_planner import plan_route
 
 class NodeManager:
     MAX_SNAPSHOT_AGE_SECONDS = 5.0
+    STARTUP_SNAPSHOT_GRACE_SECONDS = 15.0
     MAX_FUTURE_SKEW_SECONDS = 5.0
     MAX_DYNAMIC_OBSTACLE_AGE_SECONDS = 0.5
 
@@ -46,10 +56,15 @@ class NodeManager:
         now_utc = datetime.now(timezone.utc)
         age = (now_utc - snapshot_time).total_seconds()
         future_skew = (snapshot_time - now_utc).total_seconds()
-        if age > self.MAX_SNAPSHOT_AGE_SECONDS:
+        maximum_age = (
+            self.STARTUP_SNAPSHOT_GRACE_SECONDS
+            if self._snapshot_received_at is None and not self.nodes
+            else self.MAX_SNAPSHOT_AGE_SECONDS
+        )
+        if age > maximum_age:
             raise ValueError(
                 f"World snapshot is stale ({age:.2f}s older than the allowed "
-                f"{self.MAX_SNAPSHOT_AGE_SECONDS:.1f}s)"
+                f"{maximum_age:.1f}s)"
             )
         if future_skew > self.MAX_FUTURE_SKEW_SECONDS:
             raise ValueError(
@@ -287,6 +302,24 @@ class NodeManager:
             raise RuntimeError("World snapshot robot record has no position")
         return self._vector(position, ("x", "y", "z"), "robot position")
 
+    def get_nearest_node(self, position):
+        self._require_fresh_snapshot()
+        if not self.nodes:
+            return None, None
+        robot_position = self._vector(position, ("x", "y", "z"), "robot position")
+        node_id, node_position = min(
+            self.nodes.items(),
+            key=lambda item: math.hypot(
+                item[1]["x"] - robot_position["x"],
+                item[1]["y"] - robot_position["y"],
+            ),
+        )
+        distance = math.hypot(
+            node_position["x"] - robot_position["x"],
+            node_position["y"] - robot_position["y"],
+        )
+        return node_id, distance
+
     def get_robot_orientation(self, robot_id=None):
         orientation = self.get_robot_record(robot_id).get("orientation")
         if not isinstance(orientation, list) or len(orientation) != 9:
@@ -322,31 +355,13 @@ class NodeManager:
     # --------------------
 
     def print_nodes(self):
-
-        print("--------------------")
-        print("DISCOVERED WEBOTS NODES")
-
         if not self.nodes:
+            logger.debug("Waiting for the dedicated Webots world-discovery snapshot.")
+            return
 
-            print("Waiting for the dedicated Webots world-discovery snapshot.")
+        def node_number(name):
+            return int(name[1:])
 
-        else:
-
-            def node_number(name):
-                return int(name[1:])
-
-            for node_id in sorted(
-                self.nodes.keys(),
-                key=node_number
-            ):
-
-                position = self.nodes[node_id]
-
-                print(
-                    f"{node_id} -> "
-                    f"x={position['x']:.2f}, "
-                    f"y={position['y']:.2f}, "
-                    f"z={position['z']:.2f}"
-                )
-
-        print("--------------------")
+        for node_id in sorted(self.nodes.keys(), key=node_number):
+            position = self.nodes[node_id]
+            logger.debug("Discovered node %s -> x=%.2f, y=%.2f, z=%.2f", node_id, position['x'], position['y'], position['z'])

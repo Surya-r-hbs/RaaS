@@ -1,7 +1,14 @@
 import json
+import sys
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger, log_event
 from config import (
     MQTT_BROKER,
     MQTT_PORT,
@@ -9,6 +16,8 @@ from config import (
     STATUS_TOPIC,
     robot_topic_prefix,
 )
+
+logger = get_logger("raas.robot_mqtt")
 
 
 # --------------------
@@ -86,24 +95,13 @@ class MQTTHandler:
         properties=None
     ):
 
-        print("--------------------")
-        print("MQTT CONNECTED")
-        print(
-            f"Broker: "
-            f"{MQTT_BROKER}:{MQTT_PORT}"
-        )
-        print(f"Robot: {self.robot_id}")
-        print("--------------------")
+        if reason_code != 0:
+            log_event(logger, "MQTT", "mqtt.connect_failed", "Robot MQTT connection failed", level="ERROR", robot_id=self.robot_id, broker=f"{MQTT_BROKER}:{MQTT_PORT}", reason=reason_code)
+            return
 
-        client.subscribe(
-            self.command_topic
-        )
+        client.subscribe(self.command_topic)
         client.subscribe(self.discovery_topic, qos=0)
-
-        print(
-            f"Subscribed: "
-            f"{self.command_topic}"
-        )
+        log_event(logger, "MQTT", "mqtt.connected", "Robot MQTT connected", robot_id=self.robot_id, command_topic=self.command_topic, discovery_topic=self.discovery_topic)
         self.publish_discovery()
 
     # --------------------
@@ -126,19 +124,14 @@ class MQTTHandler:
             )
 
         except Exception as error:
-
-            print("--------------------")
-            print("INVALID MQTT MESSAGE")
-            print(error)
-            print("--------------------")
-
+            log_event(logger, "MQTT", "mqtt.invalid_message", "Ignored invalid MQTT payload", level="WARNING", robot_id=self.robot_id, topic=getattr(message, "topic", None), error=str(error))
             return
 
         if message.topic == self.discovery_topic:
             if payload.get("discoveryType") != "WORLD_SNAPSHOT":
                 return
             if self.world_snapshot_callback is None:
-                print("Received Webots world snapshot without a handler")
+                log_event(logger, "SIMULATION", "world_snapshot.no_handler", "Received world snapshot without a handler", level="WARNING", robot_id=self.robot_id, topic=message.topic)
                 return
             self.world_snapshot_callback(payload)
             return
@@ -146,19 +139,8 @@ class MQTTHandler:
         if message.topic != self.command_topic:
             return
 
-        print("--------------------")
-        print("COMMAND RECEIVED")
-        print(
-            json.dumps(
-                payload,
-                indent=2
-            )
-        )
-        print("--------------------")
-
-        self.command_callback(
-            payload
-        )
+        log_event(logger, "MQTT", "command.received", "Robot command received", robot_id=self.robot_id, command=payload.get("command"), order_id=payload.get("orderId"), topic=message.topic)
+        self.command_callback(payload)
 
     # --------------------
     # PUBLISH STATUS

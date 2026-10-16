@@ -1,14 +1,25 @@
 """Publish a live warehouse-object inventory from a Webots Supervisor."""
 
 import json
+import os
+import sys
 import threading
 import time
+
+from pathlib import Path
 
 from controller import Supervisor
 import paho.mqtt.client as mqtt
 
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from raas_logging import get_logger, log_event
 from object_discovery import discover_objects
 from world_discovery import discover_world_snapshot
+
+logger = get_logger("raas.object_supervisor")
 
 
 TIME_STEP = 32
@@ -17,8 +28,8 @@ MQTT_PORT = 1883
 OBJECTS_TOPIC = "warehouse/objects/raw"
 ROBOT_DISCOVERY_TOPIC = "robot/discovery"
 REFRESH_TOPIC = "warehouse/objects/refresh"
-PUBLISH_INTERVAL_SECONDS = 1.0
-ROBOT_SNAPSHOT_INTERVAL_SECONDS = 0.1
+PUBLISH_INTERVAL_SECONDS = 5.0
+ROBOT_SNAPSHOT_INTERVAL_SECONDS = 0.75
 
 
 class ObjectInventorySupervisor:
@@ -37,18 +48,18 @@ class ObjectInventorySupervisor:
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code != 0:
-            print(f"Object inventory MQTT connection failed: {reason_code}")
+            log_event(logger, "MQTT", "mqtt.connect_failed", "Object inventory MQTT connection failed", level="ERROR", topic=REFRESH_TOPIC, reason=reason_code)
             self._connected = False
             return
         self._connected = True
         client.subscribe(REFRESH_TOPIC, qos=0)
-        print(f"Object inventory connected; subscribed to {REFRESH_TOPIC}")
+        log_event(logger, "MQTT", "mqtt.connected", "Object inventory connected", topic=REFRESH_TOPIC, source="object_supervisor")
 
     def _on_disconnect(
         self, client, userdata, disconnect_flags, reason_code, properties
     ):
         self._connected = False
-        print(f"Object inventory MQTT disconnected: {reason_code}")
+        log_event(logger, "MQTT", "mqtt.disconnected", "Object inventory MQTT disconnected", level="WARNING", reason=reason_code)
 
     def _on_message(self, client, userdata, message):
         if message.topic == REFRESH_TOPIC:
@@ -63,18 +74,11 @@ class ObjectInventorySupervisor:
             retain=True,
         )
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            print(f"Object inventory publish failed: {result.rc}")
+            log_event(logger, "OBJECTS_INVENTORY", "inventory.publish_failed", "Object inventory publish failed", level="ERROR", topic=OBJECTS_TOPIC, rc=result.rc)
         return payload
 
     def publish_robot_snapshot(self):
         payload = discover_world_snapshot(self.supervisor)
-
-        print(
-            f"[DEBUG] Generated robot snapshot timestamp: "
-            f"{payload.get('timestamp')}",
-            flush=True,
-        )
-
         result = self.mqtt.publish(
             ROBOT_DISCOVERY_TOPIC,
             json.dumps(payload),
@@ -83,8 +87,10 @@ class ObjectInventorySupervisor:
         )
 
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            print(f"Robot world snapshot publish failed: {result.rc}")
-            
+            log_event(logger, "MQTT", "robot_snapshot.publish_failed", "Robot world snapshot publish failed", level="ERROR", topic=ROBOT_DISCOVERY_TOPIC, rc=result.rc)
+        else:
+            log_event(logger, "SIMULATION", "robot_snapshot.published", "Robot world snapshot published", topic=ROBOT_DISCOVERY_TOPIC, timestamp=payload.get("timestamp"))
+
         return payload
 
     def run(self):

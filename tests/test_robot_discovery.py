@@ -13,6 +13,7 @@ from robot_discovery import discover_local_robot
 from robot_registry import RobotRegistry
 from node_manager import NodeManager
 from world_discovery import discover_world_snapshot
+from robot_controller import resolve_current_node
 
 
 class Field:
@@ -122,6 +123,23 @@ class RobotDiscoveryTests(unittest.TestCase):
             },
         )
 
+    def test_nearest_node_requires_proximity_tolerance(self):
+        nodes = {
+            "N1": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "N2": {"x": 3.0, "y": 0.0, "z": 0.0},
+        }
+
+        self.assertIsNone(
+            resolve_current_node(
+                nodes,
+                {"x": 1.41, "y": -14.97, "z": 0.0},
+            )
+        )
+        self.assertEqual(
+            resolve_current_node(nodes, {"x": 3.0, "y": 0.0, "z": 0.0}),
+            "N2",
+        )
+
     def test_discovers_nested_arm_type_and_station_association(self):
         arm = Node(
             2,
@@ -206,6 +224,51 @@ class RobotDiscoveryTests(unittest.TestCase):
             )
         )
 
+    def test_infers_mobile_model_when_webots_hides_proto_type(self):
+        robot = Node(
+            8,
+            "Robot",
+            "Robot",
+            name="Pioneer3at",
+            proto_type="Robot",
+            controller="robot_controller",
+            position=(-2.0, 0.0, 0.0),
+        )
+        waypoint = Node(
+            9,
+            "Solid",
+            "Solid",
+            definition="N1",
+            position=(2.0, 0.0, 0.0),
+        )
+
+        snapshot = discover_world_snapshot(Supervisor([robot, waypoint], robot))
+        record = snapshot["worldRobots"][0]
+
+        self.assertEqual(record["robotType"], "Pioneer3at")
+        self.assertTrue(record["mobile"])
+        self.assertEqual(record["footprintRadius"], 0.32)
+        self.assertEqual(record["footprintStatus"], "MODEL_PROFILE")
+
+        snapshot["navigationMap"] = {
+            "floorBounds": {
+                "min": {"x": -5.0, "y": -5.0},
+                "max": {"x": 5.0, "y": 5.0},
+            },
+            "obstacles": [],
+            "complete": True,
+            "issues": [],
+        }
+        manager = NodeManager("Pioneer3at")
+        manager.update_world_snapshot(snapshot)
+
+        plan = manager.plan_navigation_path(
+            {"x": -2.0, "y": 0.0, "z": 0.0},
+            "N1",
+        )
+
+        self.assertEqual(plan["path"], [(-2.0, 0.0), (2.0, 0.0)])
+
     def test_missing_proto_model_does_not_abort_world_snapshot(self):
         robots = [
             Node(
@@ -219,18 +282,24 @@ class RobotDiscoveryTests(unittest.TestCase):
             for node_id, name, proto_type in (
                 (5, "MiR100", None),
                 (6, "Tiago", "Robot"),
+                (7, "UnknownBot", None),
             )
         ]
 
         snapshot = discover_world_snapshot(Supervisor(robots, robots[0]))
 
-        self.assertEqual(len(snapshot["worldRobots"]), 2)
+        self.assertEqual(len(snapshot["worldRobots"]), 3)
         self.assertEqual(
             [robot["robotId"] for robot in snapshot["worldRobots"]],
-            ["MiR100", "Tiago"],
+            ["MiR100", "Tiago", "UnknownBot"],
         )
-        self.assertTrue(
-            all("robotType" not in robot for robot in snapshot["worldRobots"])
+        self.assertEqual(
+            [robot.get("robotType") for robot in snapshot["worldRobots"]],
+            ["MiR100", "Tiago", None],
+        )
+        self.assertEqual(
+            [robot.get("footprintRadius") for robot in snapshot["worldRobots"]],
+            [0.55, 0.30, None],
         )
 
     def test_reads_station_from_world_authored_custom_data(self):
@@ -345,6 +414,27 @@ class RobotDiscoveryTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "no world snapshot record"):
             manager.get_robot_position()
+
+    def test_nearest_node_is_reported_for_robot_off_the_waypoint(self):
+        manager = NodeManager("Pioneer3at")
+        manager.update_world_snapshot(
+            {
+                "discoveryType": "WORLD_SNAPSHOT",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "navigationNodes": {
+                    "N1": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "N2": {"x": 3.0, "y": 0.0, "z": 0.0},
+                },
+                "worldRobots": [],
+            }
+        )
+
+        node_id, distance = manager.get_nearest_node(
+            {"x": 1.4, "y": -15.0, "z": 0.0}
+        )
+
+        self.assertEqual(node_id, "N1")
+        self.assertAlmostEqual(distance, 15.07, places=2)
 
     def test_world_snapshot_accepts_z_timestamp(self):
         manager = NodeManager("Pioneer3at")

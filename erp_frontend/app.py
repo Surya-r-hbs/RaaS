@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sys
@@ -89,6 +90,65 @@ persistence_lock = threading.Lock()
 orders = {}
 
 events = []
+logs = []
+
+LOG_CATEGORIES = {
+    "SYSTEM": "System & Simulation",
+    "MQTT": "MQTT & Messaging",
+    "ROBOTS": "Robots & Navigation",
+    "ORDERS": "Orders & Tasks",
+    "OBJECTS": "Objects & Inventory",
+    "ERP": "ERP & API",
+}
+LOG_SEVERITY_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+
+def normalize_log_category(category):
+    text = str(category or "ERP").strip().upper()
+    if text in LOG_CATEGORIES:
+        return text
+
+    if "MQTT" in text or "MESSAGE" in text or "BROKER" in text:
+        return "MQTT"
+    if "ROBOT" in text or "NAVIGATION" in text or "DISCOVERY" in text or "STATE" in text or "STATUS" in text:
+        return "ROBOTS"
+    if "ORDER" in text or "TASK" in text or "DISPATCH" in text:
+        return "ORDERS"
+    if "OBJECT" in text or "INVENTORY" in text or "RELATION" in text:
+        return "OBJECTS"
+    if "APP" in text or "SYSTEM" in text or "SIMULATION" in text or "SUPERVISOR" in text:
+        return "SYSTEM"
+
+    return "ERP"
+
+
+def normalize_severity(severity):
+    text = str(severity or "INFO").strip().upper()
+    return text if text in LOG_SEVERITY_LEVELS else "INFO"
+
+
+def build_log_entry(category, message, severity="INFO", source=None, payload=None, **metadata):
+    category_name = normalize_log_category(category)
+    return {
+        "timestamp": now_utc(),
+        "category": category_name,
+        "categoryLabel": LOG_CATEGORIES.get(category_name, category_name.title()),
+        "severity": normalize_severity(severity),
+        "source": str(source or "erp").strip() or "erp",
+        "message": str(message),
+        "payload": payload,
+        **metadata,
+    }
+
+
+def log_event(category, message, severity="INFO", source=None, payload=None, **metadata):
+    entry = build_log_entry(
+        category, message, severity=severity, source=source, payload=payload, **metadata
+    )
+    with data_lock:
+        logs.insert(0, entry)
+        del logs[300:]
+    return entry
 
 
 robots = {}
@@ -255,9 +315,29 @@ def add_event(
     message,
     payload=None,
 ):
+    event_severity = "ERROR"
+    event_text = str(event_type or "EVENT").upper()
+    if any(token in event_text for token in ("ERROR", "FAILED", "DISCONNECTED", "INVALID", "STALE")):
+        event_severity = "ERROR"
+    elif any(token in event_text for token in ("WARNING", "RECOVERY", "INTERRUPTED")):
+        event_severity = "WARNING"
+    elif any(token in event_text for token in ("CONNECTED", "COMPLETED", "CREATED")):
+        event_severity = "INFO"
+    else:
+        event_severity = "INFO"
+
+    log_payload = build_log_entry(
+        category=event_type,
+        message=message,
+        severity=event_severity,
+        source=event_type,
+        payload=payload,
+        type=event_type,
+    )
 
     with data_lock:
-
+        logs.insert(0, log_payload)
+        del logs[300:]
         events.insert(
             0,
             {
@@ -269,7 +349,6 @@ def add_event(
         )
 
         del events[100:]
-
 
 # --------------------
 # LOAD ORDERS
@@ -925,6 +1004,47 @@ def plan_order_nodes(start_node, route_nodes, destination):
     return planned_nodes
 
 
+def plan_robot_order_nodes(robot, route_nodes, destination):
+    start_node = robot.get("currentNode")
+    inferred_start = False
+    if start_node not in MAP_NODE_POSITIONS:
+        nearest_node = robot.get("nearestNode")
+        nearest_distance = robot.get("nearestNodeDistance")
+        position = robot.get("position")
+        try:
+            coordinates = [float(position[axis]) for axis in ("x", "y", "z")]
+        except (KeyError, TypeError, ValueError):
+            coordinates = []
+        if (
+            nearest_node not in MAP_NODE_POSITIONS
+            or len(coordinates) != 3
+            or not all(math.isfinite(value) for value in coordinates)
+            or not isinstance(nearest_distance, (int, float))
+            or not math.isfinite(nearest_distance)
+            or nearest_distance < 0
+        ):
+            raise ValueError("Robot location is not available yet")
+        start_node = nearest_node
+        inferred_start = True
+
+    planned_nodes = plan_order_nodes(start_node, route_nodes, destination)
+    if len(planned_nodes) < 2 and inferred_start:
+        alternate_starts = [
+            first if second == start_node else second
+            for first, second in MAP_CONNECTIONS
+            if first == start_node or second == start_node
+        ]
+        for alternate_start in alternate_starts:
+            candidate = plan_order_nodes(
+                alternate_start,
+                route_nodes,
+                destination,
+            )
+            if len(candidate) >= 2:
+                return candidate
+    return planned_nodes
+
+
 # --------------------
 # HOME
 # --------------------
@@ -956,6 +1076,7 @@ def dashboard():
                 robot_view["availabilityReason"] = reason
             robot_list.append(robot_view)
         event_list = list(events)
+        recent_logs = list(logs)
 
     return jsonify(
         {
@@ -963,6 +1084,7 @@ def dashboard():
             "robots": robot_list,
             "transportTasks": transport_task_manager.list_tasks(),
             "events": event_list,
+            "logs": recent_logs,
             "summary": {
                 "totalOrders": len(order_list),
                 "activeOrders": len(
@@ -985,6 +1107,44 @@ def dashboard():
                     for robot in robot_list
                 ),
             },
+        }
+    )
+
+
+@app.get("/api/logs")
+def get_logs():
+    category = str(request.args.get("category", "")).strip()
+    severity = str(request.args.get("severity", "")).strip()
+    search = str(request.args.get("search", "")).strip().lower()
+    try:
+        limit = max(1, min(int(request.args.get("limit", "100")), 500))
+    except ValueError:
+        limit = 100
+
+    with data_lock:
+        filtered_logs = []
+        for entry in logs:
+            if category and normalize_log_category(entry.get("category")) != normalize_log_category(category):
+                continue
+            if severity and entry.get("severity") != normalize_severity(severity):
+                continue
+            payload_text = " ".join(
+                [
+                    str(entry.get("category", "")),
+                    str(entry.get("severity", "")),
+                    str(entry.get("source", "")),
+                    str(entry.get("message", "")),
+                ]
+            ).lower()
+            if search and search not in payload_text:
+                continue
+            filtered_logs.append(entry)
+
+    return jsonify(
+        {
+            "logs": filtered_logs[:limit],
+            "categories": list(LOG_CATEGORIES.keys()),
+            "severities": LOG_SEVERITY_LEVELS,
         }
     )
 
@@ -1132,16 +1292,15 @@ def dispatch_transport_task(task_id):
     reason = robot_dispatchability_reason(carrier, task_id)
     if reason:
         return jsonify({"error": f"Carrier is unavailable: {reason}"}), 409
-    start_node = carrier.get("currentNode")
-    if not start_node:
-        return jsonify({"error": "Carrier location is not available yet"}), 409
     try:
-        route_nodes = plan_order_nodes(
-            start_node,
+        route_nodes = plan_robot_order_nodes(
+            carrier,
             [],
             task["destinationNode"],
         )
     except ValueError as error:
+        if str(error) == "Robot location is not available yet":
+            return jsonify({"error": "Carrier location is not available yet"}), 409
         return jsonify({"error": str(error)}), 400
     if len(route_nodes) < 2:
         return jsonify({"error": "Carrier is already at the destination"}), 409
@@ -1404,26 +1563,22 @@ def create_order():
             }
         ), 400
 
-    with data_lock:
-        start_node = selected_robot.get("currentNode")
-
-    if not start_node:
-        return jsonify(
-            {
-                "error": (
-                    "Robot location is not available yet. "
-                    "Wait for robot telemetry and refresh."
-                )
-            }
-        ), 409
-
     try:
-        planned_nodes = plan_order_nodes(
-            start_node,
+        planned_nodes = plan_robot_order_nodes(
+            selected_robot,
             route,
             destination,
         )
     except ValueError as error:
+        if str(error) == "Robot location is not available yet":
+            return jsonify(
+                {
+                    "error": (
+                        "Robot location is not available yet. "
+                        "Wait for robot telemetry and refresh."
+                    )
+                }
+            ), 409
         return jsonify({"error": str(error)}), 400
 
     if len(planned_nodes) < 2:

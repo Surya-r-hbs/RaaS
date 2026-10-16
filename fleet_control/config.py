@@ -11,6 +11,29 @@ SERIAL_NUMBER = "robot001"
 VDA_VERSION = "3.0.0"
 MQTT_KEEPALIVE = 60
 
+# Compatibility aliases for the Webots robot runtime, which imports config by
+# module name when the test harness preloads the fleet config path.
+MANUFACTURER = "DemoRobot"
+ROBOT_ID = SERIAL_NUMBER
+WEBOTS_SIMULATION_MODE = (
+    os.environ.get("RAAS_WEBOTS_SIMULATION_MODE", "").strip() == "1"
+)
+MQTT_BROKER = BROKER
+MQTT_PORT = PORT
+
+
+def robot_topic_prefix(manufacturer: str, robot_id: str) -> str:
+    return f"robot/{manufacturer}/{robot_id}"
+
+
+COMMAND_TOPIC = robot_topic_prefix(MANUFACTURER, ROBOT_ID) + "/command"
+STATUS_TOPIC = robot_topic_prefix(MANUFACTURER, ROBOT_ID) + "/status"
+TIME_STEP = 32
+POSITION_TOLERANCE = 0.12
+MAX_SPEED = 4.0
+TURN_SPEED = 2.0
+HEADING_TOLERANCE_DEGREES = 5.0
+
 
 def order_topic(manufacturer: str, serial_number: str) -> str:
     return f"vda5050/v3/{manufacturer}/{serial_number}/order"
