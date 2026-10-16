@@ -23,7 +23,9 @@ class NodeManager:
     MAX_SNAPSHOT_AGE_SECONDS = 5.0
     STARTUP_SNAPSHOT_GRACE_SECONDS = 15.0
     MAX_FUTURE_SKEW_SECONDS = 5.0
-    MAX_DYNAMIC_OBSTACLE_AGE_SECONDS = 0.5
+    # The Supervisor publishes WORLD_SNAPSHOT messages every 0.75 seconds.
+    # Allow one missed/jittered interval while keeping a finite safety timeout.
+    MAX_DYNAMIC_OBSTACLE_AGE_SECONDS = 1.5
 
     def __init__(self, robot_id=None):
         self.active_robot_id = robot_id

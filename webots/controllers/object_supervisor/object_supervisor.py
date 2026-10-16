@@ -104,8 +104,24 @@ class ObjectInventorySupervisor:
                 self._connected
                 and now - last_robot_snapshot >= ROBOT_SNAPSHOT_INTERVAL_SECONDS
             ):
-                self.publish_robot_snapshot()
-                last_robot_snapshot = now
+                # A single transient Webots discovery failure must not terminate
+                # the Supervisor loop. Keep the last published snapshot in place
+                # and retry discovery on the next interval.
+                try:
+                    self.publish_robot_snapshot()
+                except Exception as error:
+                    log_event(
+                        logger,
+                        "SIMULATION",
+                        "robot_snapshot.discovery_failed",
+                        "Robot world snapshot discovery failed; will retry",
+                        level="ERROR",
+                        topic=ROBOT_DISCOVERY_TOPIC,
+                        error_type=type(error).__name__,
+                        error=str(error),
+                    )
+                finally:
+                    last_robot_snapshot = now
             if (
                 self._connected
                 and (

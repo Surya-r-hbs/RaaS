@@ -53,12 +53,19 @@ from config import (
     SIMULATION_TRANSPORT_ENABLED,
 )
 from transport_tasks import TransportConflictError, TransportTaskManager
+from manipulation_tasks import ManipulationTaskService
 from order_planning import (
     build_order,
     plan_order_nodes,
     plan_robot_order_nodes,
     shortest_node_path,
 )
+
+if __name__ == "__main__":
+    # Route modules import "app"; alias the script module to avoid loading it twice.
+    sys.modules.setdefault("app", sys.modules[__name__])
+
+from routes.manipulation import bp as manipulation_routes
 from time_utils import now_utc
 
 
@@ -67,8 +74,6 @@ from time_utils import now_utc
 # --------------------
 
 app = Flask(__name__)
-if __name__ == "__main__":
-    sys.modules["app"] = sys.modules[__name__]
 
 
 # --------------------
@@ -81,7 +86,7 @@ DATA_FILE = Path(
     "orders.json"
 )
 TRANSPORT_TASKS_FILE = Path(__file__).with_name("transport_tasks.json")
-
+MANIPULATION_TASKS_FILE = Path(__file__).with_name("manipulation_tasks.json")
 
 # --------------------
 # LOCK
@@ -175,7 +180,9 @@ transport_task_manager = TransportTaskManager(
     MAP_NODE_POSITIONS,
     TRANSPORT_TASKS_FILE,
 )
-
+manipulation_task_service = ManipulationTaskService(
+    MANIPULATION_TASKS_FILE,
+)
 
 def robot_status_is_fresh(robot, max_age_seconds=8.0):
     last_update = robot.get("lastUpdate")
@@ -337,6 +344,20 @@ def add_event(
         )
 
         del events[100:]
+
+
+def get_manipulation_erp_state():
+    return {
+        "get_object_inventory_response": get_object_inventory_response,
+        "robot_status_is_fresh": robot_status_is_fresh,
+        "manipulation_task_service": manipulation_task_service,
+        "data_lock": data_lock,
+        "robots": robots,
+        "add_event": add_event,
+    }
+
+
+app.config["ERP_STATE"] = get_manipulation_erp_state
 
 # --------------------
 # LOAD ORDERS
@@ -930,6 +951,7 @@ app.register_blueprint(dashboard_routes)
 app.register_blueprint(transport_routes)
 app.register_blueprint(order_routes)
 app.register_blueprint(robot_routes)
+app.register_blueprint(manipulation_routes)
 
 # --------------------
 # MQTT START
@@ -968,6 +990,7 @@ if __name__ == "__main__":
 
     load_orders()
     transport_task_manager.load()
+    manipulation_task_service.load()
     start_mqtt()
 
     app.run(
